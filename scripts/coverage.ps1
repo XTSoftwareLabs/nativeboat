@@ -9,7 +9,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $ignore = '([\/]tests?[\/]|[\/]tests?\.rs$)'
-$common = @('--ignore-filename-regex', $ignore)
+# Every test binary runs, so one failing crate does not hide the others.
+$common = @('--no-fail-fast', '--ignore-filename-regex', $ignore)
 if ($Package) {
     foreach ($name in $Package) { $common += @('--package', $name) }
 } else {

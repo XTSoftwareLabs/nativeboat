@@ -22,7 +22,9 @@ env:
 jobs:
   check:
     runs-on: windows-latest
-    timeout-minutes: 90
+    # The CLI tests build and run applications; with coverage instrumentation
+    # the whole suite takes well over an hour.
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v5
       # The Rust version NativeBoat ships and builds applications with.

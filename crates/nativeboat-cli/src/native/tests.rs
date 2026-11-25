@@ -2129,6 +2129,58 @@ fn app(source: &str) -> Fixture {
     ])
 }
 
+/// Runs a built program to its end, killing it and failing the test with
+/// what it printed so far when it runs longer than `limit`, so a program
+/// that never exits cannot hang the test run.
+fn output_within(command: &mut Command, limit: std::time::Duration) -> std::process::Output {
+    use std::io::Read;
+    use std::sync::{Arc, Mutex};
+    let mut child = command
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let collect = |mut stream: Box<dyn Read + Send>| {
+        let bytes = Arc::new(Mutex::new(Vec::new()));
+        let sink = bytes.clone();
+        std::thread::spawn(move || {
+            let mut chunk = [0; 4096];
+            while let Ok(count @ 1..) = stream.read(&mut chunk) {
+                sink.lock().unwrap().extend_from_slice(&chunk[..count]);
+            }
+        });
+        bytes
+    };
+    let stdout = collect(Box::new(child.stdout.take().unwrap()));
+    let stderr = collect(Box::new(child.stderr.take().unwrap()));
+    let text =
+        |bytes: &Arc<Mutex<Vec<u8>>>| String::from_utf8_lossy(&bytes.lock().unwrap()).into_owned();
+    let start = std::time::Instant::now();
+    let status = loop {
+        if let Some(status) = child.try_wait().unwrap() {
+            break status;
+        }
+        if start.elapsed() > limit {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!(
+                "the program ran longer than {limit:?}; stdout: {}; stderr: {}",
+                text(&stdout),
+                text(&stderr)
+            );
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    };
+    // The readers end with the program's pipes; give them a moment to drain.
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    std::process::Output {
+        status,
+        stdout: stdout.lock().unwrap().clone(),
+        stderr: stderr.lock().unwrap().clone(),
+    }
+}
+
 fn run(fixture: &Fixture, flags: &[&str]) -> (u8, String, String) {
     let mut args = vec![
         "nativeboat".to_owned(),
@@ -7560,7 +7612,10 @@ setTimeout(() => console.log('timeout', out.join('|')), 10000).unref();
     let (code, out, err) = run(&fixture, &["--out", "native-output"]);
     assert_eq!(code, 0, "{out}{err}");
     let executable = fixture.path("native-output/native-test.exe");
-    let executed = Command::new(&executable).env("PATH", "").output().unwrap();
+    let executed = output_within(
+        Command::new(&executable).env("PATH", ""),
+        std::time::Duration::from_secs(60),
+    );
     assert!(executed.status.success(), "{executed:?}");
     assert_eq!(
         String::from_utf8_lossy(&executed.stdout),
