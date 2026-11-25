@@ -1,0 +1,43 @@
+ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
+a9993e364706816aba3e25717850c26c9cd0d89d
+5031fe3d989c6d1537a013fa6e739da23463fdaec3b70137d828e36ace221bd0
+true
+false
+{"key_ops":["sign","verify"],"ext":true,"kty":"oct","k":"a2V5","alg":"HS256"}
+{"name":"HMAC","hash":{"name":"SHA-256"},"length":24}
+secret
+true
+["sign","verify"]
+94dcdb0b8bc14b42e3371153733d582b68d5ad3c2dd3dc6500148bab6c44
+secret message
+{"key_ops":["encrypt","decrypt"],"ext":true,"kty":"oct","k":"CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQk","alg":"A256GCM"}
+{"name":"AES-GCM","length":256}
+OperationError
+The operation failed for an operation-specific reason
+2744fc9b2379f312df9c9491361209cf3cf34ae22ace271023f19f7a651debfe
+InvalidAccessError
+key is not extractable
+f4e80d674fcf452007f07f04ef465224dbe37de72cbf01221ff8dfe3b0557cc24310e60d6390fa7d
+0a38253555ce37f5c72a6b703f996814ebf241f2
+95c9338ea3a049dc400b5ed6617b5c45
+{"name":"AES-GCM","length":128}
+9ca0d662557439e3b83365f2da4626d35da195c6d9d1779f09838cf9e408966ece99106e2585ace6f083
+HMAC
+1024
+SHA-512
+128
+eec48bdc214a89dbff08a0e2f12083a31f8e62a248a980f78c5c5a1f94a94fcf
+InvalidAccessError
+Unable to use this key to sign
+NotSupportedError
+Unrecognized algorithm name
+DataError
+Invalid key length
+SyntaxError
+Unsupported key usage for an AES key
+TypeMismatchError
+The data argument must be an integer-type TypedArray
+QuotaExceededError
+The requested length exceeds 65,536 bytes
+function
+true

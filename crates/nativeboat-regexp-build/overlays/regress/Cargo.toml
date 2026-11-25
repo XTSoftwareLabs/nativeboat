@@ -1,0 +1,23 @@
+# Nativeboat overlay of regress 0.12.0; original manifest is retained in vendor.
+[package]
+name = "regress"
+version = "0.12.0"
+edition = "2024"
+publish = false
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/ridiculousfish/regress"
+autotests = false
+
+[features]
+default = ["backend-pikevm", "std"]
+std = ["memchr/std"]
+alloc = ["dep:hashbrown", "memchr/alloc"]
+backend-pikevm = []
+index-positions = []
+pattern = []
+prohibit-unsafe = []
+utf16 = []
+
+[dependencies]
+hashbrown = { version = "=0.17.1", optional = true }
+memchr = { version = "=2.8.3", default-features = false }

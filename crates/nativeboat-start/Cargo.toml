@@ -1,0 +1,20 @@
+[package]
+name = "nativeboat-start"
+description = "Process startup for native executables built by nativeboat: entry point, heap allocator, panic handling and memory primitives, without a C runtime."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+# No dependencies: generated executables link this crate, `core`, `alloc` and
+# operating-system DLLs only.
+[dependencies]
+
+[features]
+# Leaves out what programs that use `std` bring themselves: the allocator,
+# the panic handler and the entry point.
+std-host = []
+
+[lints]
+workspace = true

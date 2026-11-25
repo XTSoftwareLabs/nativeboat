@@ -1,0 +1,20 @@
+[package]
+name = "nativeboat-compiler"
+description = "Compiles application behavior into native code without a JavaScript engine."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+oxc.workspace = true
+nativeboat-regexp = { path = "../nativeboat-regexp" }
+
+[dev-dependencies]
+nativeboat-regexp-build = { path = "../nativeboat-regexp-build" }
+nativeboat-url-build = { path = "../nativeboat-url-build" }
+nativeboat-encoding-build = { path = "../nativeboat-encoding-build" }
+
+[lints]
+workspace = true

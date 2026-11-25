@@ -1,0 +1,5 @@
+# Each compiler process maps a lot of crate metadata. Limiting parallel jobs
+# keeps builds from failing with os error 1455 on machines with little free
+# memory; set CARGO_BUILD_JOBS to override.
+[build]
+jobs = 4

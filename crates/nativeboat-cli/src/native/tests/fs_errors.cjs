@@ -1,0 +1,25 @@
+ 'use strict';
+const {UVException,uvErrmapGet}=require('internal/errors');
+const u=require('internal/fs/utils');
+process.noDeprecation=true;
+const out=[];const record=(fn)=>{try{out.push(fn());}catch(e){out.push([e.name,e.code,e.message]);}};
+const shape=(e)=>[e.name,e.code,e.message,e.errno,e.syscall,e.path,e.dest,Object.keys(e),e.constructor===Error,e instanceof Error,e instanceof UVException,Object.prototype.toString.call(e)];
+for(const ctx of [{errno:-4058,syscall:'open'},{errno:-4068,syscall:'read',message:'custom',path:'C:\\ü',dest:'D:\\中',extra:3},{errno:-12345,syscall:'unknown'},{errno:'-4058',syscall:'string'},{errno:-4058,syscall:'open',path:0,dest:false},{errno:-4058,syscall:'open',path:{toString(){return undefined;}},dest:{toString(){return 0;}}}])record(()=>shape(new UVException(ctx)));
+for(const x of [undefined,null,3,'ab'])record(()=>shape(new UVException(x)));
+record(()=>UVException({errno:-4058}));
+for(const key of [-4058,-4068,-12345,0,NaN,'-4058',{}])record(()=>uvErrmapGet(key));
+const row=uvErrmapGet(-4058);out.push(row===uvErrmapGet(-4058));
+const saved=row.slice();row[0]='CHANGED';row[1]='changed message';out.push(shape(new UVException({errno:-4058,syscall:'read'})));row.set=undefined;row[0]=saved[0];row[1]=saved[1];
+const events=[];row[0]={toString(){events.push('code');return 'ENOENT';}};
+const ctx={get errno(){events.push('errno');return -4058;},get message(){events.push('message');return 'supplied';},get syscall(){events.push('syscall');return 'stat';},get path(){events.push('path');return {toString(){events.push('pathString');return 'p';}};},get dest(){events.push('dest');return '';},get extra(){events.push('extra');return 3;}};
+const e=new UVException(ctx);out.push([e.message,events.slice()]);row[0]=saved[0];
+const mutate={errno:-4058,syscall:'stat',get first(){Object.defineProperty(this,'later',{enumerable:false});return 1;},later:2};const m=new UVException(mutate);out.push(m.first,m.later,Object.keys(m));
+for(const field of ['errno','message','syscall','path','dest','extra']){const c={errno:-4058,syscall:'stat'};Object.defineProperty(c,field,{enumerable:true,get(){throw field;}});record(()=>new UVException(c));}
+function Target(){};const custom=Reflect.construct(UVException,[{errno:-4058,syscall:'stat'}],Target);out.push(custom instanceof Target,custom instanceof UVException,custom.constructor===Target,custom.message);
+Target.prototype=3;const fallback=Reflect.construct(UVException,[{errno:-4058,syscall:'stat'}],Target);out.push(Object.getPrototypeOf(fallback)===Error.prototype,fallback.constructor===Error);
+const changed={};Object.defineProperty(changed,'code',{set(value){out.push(['setter',value]);},get(){return 'codeGetter';}});Target.prototype=changed;const set=Reflect.construct(UVException,[{errno:-4058,syscall:'stat'}],Target);out.push(set.code);
+record(()=>u.handleErrorFromBinding({errno:-4058,syscall:'open',path:'file'}));record(()=>u.handleErrorFromBinding({error:new RangeError('encoding')}));record(()=>u.handleErrorFromBinding({}));
+const OriginalError=Error;globalThis.Error=function ChangedError(){};OriginalError.prototype.constructor=globalThis.Error;const protectedError=new UVException({errno:-4058,syscall:'open'});out.push(protectedError.constructor===OriginalError,Object.getPrototypeOf(UVException)===OriginalError,protectedError instanceof OriginalError);globalThis.Error=OriginalError;OriginalError.prototype.constructor=OriginalError;
+record(()=>new UVException({errno:-4058,message:'\ud800',syscall:'x\udfff',path:'\ud800'}).message);
+record(()=>new UVException({errno:-4058,syscall:'stat',dest:'\udfff'}).message);
+console.log(JSON.stringify(out));

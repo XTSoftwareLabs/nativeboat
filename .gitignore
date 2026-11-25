@@ -1,0 +1,10 @@
+/target
+/dist
+/examples/**/dist/
+/examples/**/dist-electron/
+**/node_modules/
+!/fixtures/**/node_modules/
+*.profraw
+*.profdata
+lcov.info
+__pycache__/

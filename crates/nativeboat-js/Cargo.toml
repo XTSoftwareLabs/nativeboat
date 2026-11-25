@@ -1,0 +1,22 @@
+[package]
+name = "nativeboat-js"
+description = "JavaScript host on Boa: bundle module loading, timers, microtasks, console and error reporting."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+boa_engine.workspace = true
+boa_gc.workspace = true
+nativeboat-bundler.workspace = true
+nativeboat-ir.workspace = true
+serde_json.workspace = true
+windows-sys.workspace = true
+
+[dev-dependencies]
+shimforge.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,11 @@
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.jpg binary
+# Keep upstream matcher sources byte-identical to the pinned registry packages.
+crates/nativeboat-regexp-build/vendor/** -text
+# Keep bundled Node.js library sources byte-identical to upstream.
+crates/nativeboat-cli/node/** -text
+
+# Keep the pinned URL parser package sources byte-identical.
+crates/nativeboat-url-build/vendor/** -text

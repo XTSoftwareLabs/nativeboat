@@ -1,0 +1,10 @@
+[package]
+name = "generate-line-break-table"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+icu_properties = { version = "=2.3.0", features = ["compiled_data"] }
+
+[workspace]

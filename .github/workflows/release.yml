@@ -1,0 +1,121 @@
+name: Release
+
+# Builds the release package for a version tag and publishes it as a GitHub
+# release of this repository. Push a tag `v<version>` whose version matches
+# `[workspace.package]` in Cargo.toml and has a section in CHANGELOG.md, or
+# start the workflow by hand for an existing tag. Versions with a pre-release
+# part, such as 0.1.0-alpha.5, are published as pre-releases.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to release, such as v0.1.0-alpha.5
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: refs/tags/${{ env.TAG }}
+
+      - name: Version
+        id: version
+        shell: pwsh
+        run: |
+          $manifest = Get-Content -Raw Cargo.toml
+          if ($manifest -notmatch '(?m)^\[workspace\.package\][^\[]*?^version\s*=\s*"([^"]+)"') {
+              throw 'No workspace version in Cargo.toml'
+          }
+          $version = $Matches[1]
+          if ($env:TAG -ne "v$version") {
+              throw "Tag $env:TAG does not match the workspace version $version"
+          }
+          $rust = (Get-Content scripts/toolchain-version.txt -Raw).Trim()
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "rust=$rust" >> $env:GITHUB_OUTPUT
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.version.outputs.rust }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Build the release package
+        shell: pwsh
+        run: ./scripts/build-release.ps1
+
+      # Checks the package as users get it: extracted into a fresh folder,
+      # building the example application with nothing else installed.
+      - name: Build the example with the extracted package
+        shell: pwsh
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          $package = "target\release-package\$version"
+          $check = 'target\relcheck'
+          Expand-Archive "$package\nativeboat-$version-windows-x64.zip" -DestinationPath "$check\nativeboat"
+          $nativeboat = "$check\nativeboat\nativeboat.exe"
+          $reported = (& $nativeboat --version | Out-String).Trim()
+          if ($reported -ne "nativeboat $version") { throw "The package reports '$reported'" }
+          Push-Location examples/react-vite
+          npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+          if ($LASTEXITCODE) { throw 'npm ci failed' }
+          Pop-Location
+          & $nativeboat build examples/react-vite --out "$check\app"
+          if ($LASTEXITCODE) { throw "nativeboat build failed with exit code $LASTEXITCODE" }
+          $exe = Get-ChildItem "$check\app" -Filter *.exe | Select-Object -First 1
+          if (-not $exe) { throw 'The example build wrote no executable' }
+          Write-Host "Built $($exe.FullName) ($([math]::Round($exe.Length / 1MB, 1)) MB)"
+
+      - name: Release notes
+        shell: pwsh
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          $changelog = Get-Content -Raw CHANGELOG.md
+          $pattern = '(?ms)^## ' + [regex]::Escape($version) + '[ \t]*$(.*?)(?=^## |\z)'
+          if ($changelog -notmatch $pattern) { throw "CHANGELOG.md has no section for $version" }
+          $notes = $Matches[1].Trim()
+          if (-not $notes) { throw "The CHANGELOG.md section for $version is empty" }
+          $notes += "`n`nDownload ``nativeboat-$version-windows-x64.zip``, extract it and add the folder to your ``PATH``; see the [README](https://github.com/${{ github.repository }}/blob/$env:TAG/README.md). ``SHA256SUMS.txt`` holds the archive's checksum."
+          [System.IO.File]::WriteAllText("$PWD\target\release-notes.md", $notes)
+
+      - name: Publish the GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          $package = "target\release-package\$version"
+          $flags = @('--verify-tag', '--title', "NativeBoat $version", '--notes-file', 'target\release-notes.md')
+          if ($version.Contains('-')) { $flags += '--prerelease' }
+          gh release create $env:TAG "$package\nativeboat-$version-windows-x64.zip" "$package\SHA256SUMS.txt" @flags
+          if ($LASTEXITCODE) { throw 'gh release create failed' }
+
+      # Keeps the package when publishing fails, for a look or a manual upload.
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: nativeboat-${{ steps.version.outputs.version }}-windows-x64
+          path: |
+            target/release-package/*/nativeboat-*.zip
+            target/release-package/*/SHA256SUMS.txt
+          if-no-files-found: ignore

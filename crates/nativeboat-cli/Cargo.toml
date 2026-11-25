@@ -1,0 +1,46 @@
+[package]
+name = "nativeboat-cli"
+description = "The nativeboat compiler: turns unchanged Electron applications into native Windows applications."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "nativeboat"
+path = "src/main.rs"
+
+[dependencies]
+serde_json.workspace = true
+base64.workspace = true
+clap.workspace = true
+flate2.workspace = true
+oxc.workspace = true
+nativeboat-analyzer.workspace = true
+nativeboat-bundler.workspace = true
+nativeboat-project.workspace = true
+nativeboat-html.workspace = true
+nativeboat-css.workspace = true
+nativeboat-compiler = { path = "../nativeboat-compiler" }
+nativeboat-conceal = { path = "../nativeboat-conceal" }
+nativeboat-regexp-build = { path = "../nativeboat-regexp-build" }
+nativeboat-url-build = { path = "../nativeboat-url-build" }
+nativeboat-encoding-build.workspace = true
+windows-sys.workspace = true
+nativeboat-std-start = { path = "../nativeboat-std-start" }
+
+[features]
+default = ["embedded-runtime"]
+# Embeds the runtime's sources and compiles them with the selected rustc.
+# Released compilers are built without it and link the libraries that
+# `nativeboat export-runtime` precompiled into their toolchain.
+embedded-runtime = []
+
+[dev-dependencies]
+nativeboat-ir.workspace = true
+shimforge.workspace = true
+
+[lints]
+workspace = true

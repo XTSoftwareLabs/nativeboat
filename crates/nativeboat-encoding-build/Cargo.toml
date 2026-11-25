@@ -1,0 +1,11 @@
+[package]
+name = "nativeboat-encoding-build"
+description = "Packaged no_std character encoding detector sources for nativeboat applications."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true

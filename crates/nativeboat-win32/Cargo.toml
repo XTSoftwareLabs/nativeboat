@@ -1,0 +1,25 @@
+[package]
+name = "nativeboat-win32"
+description = "Win32 backend: windows, native controls, GDI+ painting, input and the message loop."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[features]
+default = ["std"]
+std = ["nativeboat-css/std", "nativeboat-ir/std", "nativeboat-layout/std"]
+
+[dependencies]
+nativeboat-css = { path = "../nativeboat-css", default-features = false }
+nativeboat-ir = { path = "../nativeboat-ir", default-features = false }
+nativeboat-layout = { path = "../nativeboat-layout", default-features = false }
+libm = { version = "=0.2.16", default-features = false }
+windows-sys.workspace = true
+
+[dev-dependencies]
+shimforge.workspace = true
+
+[lints]
+workspace = true

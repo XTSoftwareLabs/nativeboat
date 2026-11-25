@@ -1,0 +1,30 @@
+[package]
+name = "nativeboat-ir"
+description = "Application package format and platform-independent native UI tree."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+base64 = { workspace = true, optional = true }
+nativeboat-bundler = { path = "../nativeboat-bundler", optional = true }
+nativeboat-css = { path = "../nativeboat-css", default-features = false }
+nativeboat-html = { path = "../nativeboat-html", default-features = false, optional = true }
+serde = { version = "1", default-features = false, features = ["alloc", "derive"] }
+serde_json = { workspace = true, optional = true }
+
+[lints]
+workspace = true
+
+[features]
+default = ["std"]
+std = [
+    "dep:base64",
+    "dep:nativeboat-bundler",
+    "nativeboat-css/std",
+    "dep:nativeboat-html",
+    "serde/std",
+    "dep:serde_json",
+]

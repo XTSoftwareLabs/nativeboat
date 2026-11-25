@@ -1,0 +1,62 @@
+[
+  {
+    "package": "equivalent-1.0.2",
+    "registry_archive_sha256": "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f",
+    "vcs": {
+      "git": {
+        "sha1": "44cdd44f8b8ebb5f9ae096c7550a5e74ffb7d6ae"
+      },
+      "path_in_vcs": ""
+    }
+  },
+  {
+    "package": "allocator-api2-0.2.21",
+    "registry_archive_sha256": "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923",
+    "vcs": {
+      "git": {
+        "sha1": "63cd7fcc2f8854b5821c7054d026e8a4647acde1"
+      },
+      "path_in_vcs": ""
+    }
+  },
+  {
+    "package": "foldhash-0.2.0",
+    "registry_archive_sha256": "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb",
+    "vcs": {
+      "git": {
+        "sha1": "8f878c636fda9c9e93384824ea45e06d03f009f5"
+      },
+      "path_in_vcs": ""
+    }
+  },
+  {
+    "package": "hashbrown-0.17.1",
+    "registry_archive_sha256": "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a",
+    "vcs": {
+      "git": {
+        "sha1": "c62a63a61b7caf2de8f9ecb7b06a66b0ab6bdf3d"
+      },
+      "path_in_vcs": ""
+    }
+  },
+  {
+    "package": "memchr-2.8.3",
+    "registry_archive_sha256": "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98",
+    "vcs": {
+      "git": {
+        "sha1": "5fdb40c054e1fff359a2f7bdf7f87a13b34b465d"
+      },
+      "path_in_vcs": ""
+    }
+  },
+  {
+    "package": "regress-0.12.0",
+    "registry_archive_sha256": "32eef8b209c3c1c15dbad02c1f30f9539f00dc7253e0cbcdaae442a50a09d7c1",
+    "vcs": {
+      "git": {
+        "sha1": "aae35dee1596cc9a9caaad2425b088081c09e5d5"
+      },
+      "path_in_vcs": ""
+    }
+  }
+]

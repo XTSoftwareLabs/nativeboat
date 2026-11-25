@@ -1,0 +1,137 @@
+[
+  {
+    "package": "unicode-joining-type-1.0.0",
+    "registry_archive_sha256": "d8d00a78170970967fdb83f9d49b92f959ab2bb829186b113e4f4604ad98e180",
+    "license": "Apache-2.0",
+    "vcs": {
+      "git": {
+        "sha1": "6433d4419712158c27fa4c2f6fc2afb74e7b11a3"
+      },
+      "path_in_vcs": ""
+    }
+  },
+  {
+    "package": "idna_mapping-1.1.0",
+    "registry_archive_sha256": "11c13906586a4b339310541a274dd927aff6fcbb5b8e3af90634c4b31681c792",
+    "license": "(Apache-2.0 OR MIT) AND Unicode-3.0",
+    "vcs": {
+      "git": {
+        "sha1": "abec3fe1d800e1776f8340ca332d5bd3c5437824"
+      },
+      "path_in_vcs": ""
+    }
+  },
+  {
+    "package": "unicode-bidi-0.3.18",
+    "registry_archive_sha256": "5c1cb5db39152898a79168971543b1cb5020dff7fe43c8dc468b0885f5e29df5",
+    "license": "MIT OR Apache-2.0",
+    "vcs": {
+      "git": {
+        "sha1": "580b9c6c68fdb689916017e61d5052be3ed349b5"
+      },
+      "path_in_vcs": ""
+    }
+  },
+  {
+    "package": "tinyvec-1.13.3",
+    "registry_archive_sha256": "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee",
+    "license": "Zlib OR Apache-2.0 OR MIT",
+    "vcs": {
+      "git": {
+        "sha1": "e343bbbb5a6594c9d57de718e6f232e6c0115dcb"
+      },
+      "path_in_vcs": ""
+    }
+  },
+  {
+    "package": "unicode-normalization-0.1.24",
+    "registry_archive_sha256": "5033c97c4262335cded6d6fc3e5c18ab755e1a3dc96376350f3d8e9f009ad956",
+    "license": "MIT/Apache-2.0",
+    "vcs": {
+      "git": {
+        "sha1": "c9921309f09ebd05108920fda92efbf5f8124a7d"
+      },
+      "path_in_vcs": ""
+    }
+  },
+  {
+    "package": "idna_adapter-1.1.0",
+    "registry_archive_sha256": "279259b0ac81c89d11c290495fdcfa96ea3643b7df311c138b6fe8ca5237f0f8",
+    "license": "Apache-2.0 OR MIT",
+    "vcs": {
+      "git": {
+        "sha1": "b3664149852130dd0ff8e7712902236546ab2a06"
+      },
+      "path_in_vcs": ""
+    }
+  },
+  {
+    "package": "percent-encoding-2.3.2",
+    "registry_archive_sha256": "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220",
+    "license": "MIT OR Apache-2.0",
+    "vcs": {
+      "git": {
+        "sha1": "91377f48bf35011d042aa5abef9e7f2a0a625aaa",
+        "dirty": true
+      },
+      "path_in_vcs": "percent_encoding"
+    }
+  },
+  {
+    "package": "form_urlencoded-1.2.2",
+    "registry_archive_sha256": "cb4cb245038516f5f85277875cdaa4f7d2c9a0fa0468de06ed190163b1581fcf",
+    "license": "MIT OR Apache-2.0",
+    "vcs": {
+      "git": {
+        "sha1": "91377f48bf35011d042aa5abef9e7f2a0a625aaa",
+        "dirty": true
+      },
+      "path_in_vcs": "form_urlencoded"
+    }
+  },
+  {
+    "package": "smallvec-1.16.3",
+    "registry_archive_sha256": "5b3dc8af474f516a851ff4bd12db780f948b9250ad37211e4eec0bccea54e01b",
+    "license": "MIT OR Apache-2.0",
+    "vcs": {
+      "git": {
+        "sha1": "bb9e44b68571e28e88196dcdb11fab89f3df5a0a"
+      },
+      "path_in_vcs": ""
+    }
+  },
+  {
+    "package": "utf8_iter-1.0.4",
+    "registry_archive_sha256": "b6c140620e7ffbb22c2dee59cafe6084a59b5ffc27a8859a5f0d494b5d52b6be",
+    "license": "Apache-2.0 OR MIT",
+    "vcs": {
+      "git": {
+        "sha1": "6b604ea2365bd535fb66eb4bfe92a9e00e333090"
+      },
+      "path_in_vcs": ""
+    }
+  },
+  {
+    "package": "idna-1.1.0",
+    "registry_archive_sha256": "3b0875f23caa03898994f6ddc501886a45c7d3d62d04d2d90788d47be1b1e4de",
+    "license": "MIT OR Apache-2.0",
+    "vcs": {
+      "git": {
+        "sha1": "91377f48bf35011d042aa5abef9e7f2a0a625aaa",
+        "dirty": true
+      },
+      "path_in_vcs": "idna"
+    }
+  },
+  {
+    "package": "url-2.5.8",
+    "registry_archive_sha256": "ff67a8a4397373c3ef660812acab3268222035010ab8680ec4215f38ba3d0eed",
+    "license": "MIT OR Apache-2.0",
+    "vcs": {
+      "git": {
+        "sha1": "d6ea13c5f8e7e6e627f6390161b3e185bda5e5ce"
+      },
+      "path_in_vcs": "url"
+    }
+  }
+]

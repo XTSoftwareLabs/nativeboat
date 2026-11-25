@@ -1,0 +1,41 @@
+[package]
+name = "nativeboat-native"
+description = "Native values and abstract operations for compiled application behavior, without a JavaScript engine."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+# Generated application code links this library with a plain native toolchain
+# invocation, and it must never pull in an engine. Its parser and matcher dependencies
+# are no_std libraries built by the CLI from pinned, packaged sources.
+[dependencies]
+nativeboat-regexp = { path = "../nativeboat-regexp" }
+chardetng.workspace = true
+url = { version = "=2.5.8", default-features = false }
+idna = { version = "=1.1.0", default-features = false, features = ["alloc", "compiled_data"] }
+# Keep the packaged Unicode 16 backend identical to the development build.
+idna_adapter = "=1.1.0"
+unicode-normalization = { version = "=0.1.24", default-features = false }
+smallvec = { version = "=1.16.3", default-features = false }
+miniz_oxide = { version = "=0.9.1", default-features = false, features = ["with-alloc"] }
+# Renderer pages' documents. Generated builds compile the runtime with this
+# feature when the packaged renderer libraries are available.
+nativeboat-dom = { path = "../nativeboat-dom", default-features = false, optional = true }
+nativeboat-html = { path = "../nativeboat-html", default-features = false, optional = true }
+
+[features]
+default = ["dom"]
+# The Web APIs of renderer pages over a native document.
+dom = ["dep:nativeboat-dom", "dep:nativeboat-html"]
+
+# The upstream of the vendored math functions, as the tests' reference.
+[dev-dependencies]
+libm = "=0.2.16"
+flate2.workspace = true
+shimforge.workspace = true
+encoding_rs = { workspace = true, features = ["alloc"] }
+
+[lints]
+workspace = true

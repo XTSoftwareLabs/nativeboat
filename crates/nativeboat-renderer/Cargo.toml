@@ -1,0 +1,28 @@
+[package]
+name = "nativeboat-renderer"
+description = "Page renderer: scripts with web APIs, styles, layout, native UI tree diffs and input."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+base64.workspace = true
+boa_engine.workspace = true
+nativeboat-css.workspace = true
+nativeboat-dom.workspace = true
+nativeboat-ir.workspace = true
+nativeboat-js.workspace = true
+nativeboat-layout.workspace = true
+nativeboat-web.workspace = true
+nativeboat-win32.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+nativeboat-bundler.workspace = true
+nativeboat-html.workspace = true
+shimforge.workspace = true
+
+[lints]
+workspace = true

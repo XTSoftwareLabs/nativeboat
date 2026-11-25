@@ -1,0 +1,92 @@
+name: CI
+
+# Runs for pull requests and for pushes to main. It can also be started by
+# hand for any branch.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  NATIVEBOAT_HIDDEN: '1'
+
+jobs:
+  check:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+      # The Rust version NativeBoat ships and builds applications with.
+      - name: Pinned Rust version
+        id: rust
+        shell: pwsh
+        run: '"version=$((Get-Content scripts/toolchain-version.txt -Raw).Trim())" >> $env:GITHUB_OUTPUT'
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.rust.outputs.version }}
+          components: rustfmt, clippy, llvm-tools-preview
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Example dependencies
+        working-directory: examples/react-vite
+        run: npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Coverage profile checks
+        shell: pwsh
+        run: ./scripts/tests/coverage.tests.ps1
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Test with coverage
+        shell: pwsh
+        run: ./scripts/coverage.ps1
+
+  # Builds the release binaries, compiles the example with them and checks
+  # the executable's size, startup time and memory against budgets, next to
+  # the same application running under Electron.
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - name: Pinned Rust version
+        id: rust
+        shell: pwsh
+        run: '"version=$((Get-Content scripts/toolchain-version.txt -Raw).Trim())" >> $env:GITHUB_OUTPUT'
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.rust.outputs.version }}
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Example dependencies with Electron
+        working-directory: examples/react-vite
+        run: npm ci --no-audit --no-fund
+      - name: Electron build of the example
+        working-directory: examples/react-vite
+        run: npx vite build
+      - name: Size, startup and memory checks
+        shell: pwsh
+        run: ./scripts/release-check.ps1 -Electron
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nativeboat-windows-x64
+          path: |
+            target/release/nativeboat.exe
+            target/release/toolchain/
+            LICENSE
+            THIRD-PARTY-NOTICES.md
+            THIRD-PARTY-LICENSES.txt

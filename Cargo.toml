@@ -1,0 +1,113 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+exclude = ["crates/nativeboat-regexp-build/overlays/regress"]
+
+[workspace.package]
+version = "0.1.0-alpha.5"
+license = "MIT"
+edition = "2024"
+rust-version = "1.96"
+publish = false
+repository = "https://github.com/XTSoftwareLabs/nativeboat"
+
+[workspace.dependencies]
+clap = { version = "4.5", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+serde_yaml_ng = "0.10"
+json5 = "1.3"
+indexmap = { version = "2", features = ["serde"] }
+ryu-js = "1"
+url = "2.5"
+oxc = { version = "0.152", features = ["semantic", "transformer", "codegen", "ast_visit"] }
+oxc_ecmascript = "0.152"
+base64 = "0.22"
+flate2 = "1"
+chardetng = "=1.0.0"
+encoding_rs = { version = "=0.8.42", default-features = false }
+shimforge = "0.1.3"
+boa_engine = { version = "0.22", default-features = false, features = ["annex-b"] }
+boa_gc = "0.22"
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Globalization",
+    "Win32_Graphics_Gdi",
+    "Win32_Graphics_GdiPlus",
+    "Win32_Graphics_Printing",
+    "Win32_Networking_WinHttp",
+    "Win32_Security_Credentials",
+    "Win32_Security_Cryptography",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_Console",
+    "Win32_System_DataExchange",
+    "Win32_System_IO",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Memory",
+    "Win32_System_Ole",
+    "Win32_System_Power",
+    "Win32_System_Registry",
+    "Win32_System_SystemInformation",
+    "Win32_System_SystemServices",
+    "Win32_Storage_FileSystem",
+    "Win32_Storage_Xps",
+    "Win32_System_Threading",
+    "Win32_System_Time",
+    "Win32_UI_Controls",
+    "Win32_UI_Controls_Dialogs",
+    "Win32_UI_HiDpi",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Input_Ime",
+    "Win32_UI_Shell",
+    "Win32_UI_Shell_Common",
+    "Win32_UI_WindowsAndMessaging",
+] }
+nativeboat-html = { path = "crates/nativeboat-html" }
+nativeboat-css = { path = "crates/nativeboat-css" }
+nativeboat-bundler = { path = "crates/nativeboat-bundler" }
+nativeboat-project = { path = "crates/nativeboat-project" }
+nativeboat-analyzer = { path = "crates/nativeboat-analyzer" }
+nativeboat-ir = { path = "crates/nativeboat-ir" }
+nativeboat-dom = { path = "crates/nativeboat-dom" }
+nativeboat-layout = { path = "crates/nativeboat-layout" }
+nativeboat-win32 = { path = "crates/nativeboat-win32" }
+nativeboat-js = { path = "crates/nativeboat-js" }
+nativeboat-web = { path = "crates/nativeboat-web" }
+nativeboat-encoding-build = { path = "crates/nativeboat-encoding-build" }
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+undocumented_unsafe_blocks = "deny"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+# nativeboat runs without the Visual C++ runtime, whose exception support
+# unwinding panics need.
+panic = "abort"
+
+# Keep build output small: dependencies carry no debug info and incremental
+# caches are disabled. Coverage instrumentation does not need either.
+# Optimize native application code as well as dependencies. Debug assertions
+# and line tables remain available without making layout and painting run at O0.
+[profile.dev]
+opt-level = 2
+debug = "line-tables-only"
+incremental = false
+
+[profile.dev.package."*"]
+debug = false
+opt-level = 2
+
+# Test executables do not need Rust debug info. LLVM coverage carries its own
+# source mapping; keep line tables in ordinary development builds for debugging.
+# The Windows linker can still emit a smaller PDB for native/public symbols.
+[profile.test]
+debug = false
+opt-level = 0

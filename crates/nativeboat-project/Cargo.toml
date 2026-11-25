@@ -1,0 +1,25 @@
+[package]
+name = "nativeboat-project"
+description = "Discovers the entry points and configuration of an Electron project."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+nativeboat-bundler.workspace = true
+oxc.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml_ng.workspace = true
+json5.workspace = true
+indexmap.workspace = true
+ryu-js.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+shimforge.workspace = true
+
+[lints]
+workspace = true

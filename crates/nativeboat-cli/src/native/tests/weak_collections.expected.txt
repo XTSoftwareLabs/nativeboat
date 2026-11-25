@@ -1,0 +1,74 @@
+WeakMap { <items unknown> } WeakSet { <items unknown> } WeakRef {} FinalizationRegistry {} Sub [WeakMap] { <items unknown> }
+1
+false
+true
+2
+3
+true
+false
+false
+
+false
+false
+true
+true
+true
+true
+false
+true
+false
+TypeError: Invalid value used as weak map key
+TypeError: Invalid value used as weak map key
+TypeError: Invalid value used in weak set
+TypeError: Iterator value 1 is not an entry object
+TypeError: Invalid value used as weak map key
+TypeError: Constructor WeakMap requires 'new'
+TypeError: Constructor WeakSet requires 'new'
+TypeError: Constructor WeakRef requires 'new'
+TypeError: Constructor FinalizationRegistry requires 'new'
+TypeError: Method WeakMap.prototype.get called on incompatible receiver #<Object>
+TypeError: Method WeakMap.prototype.set called on incompatible receiver #<Map>
+TypeError: Method WeakSet.prototype.add called on incompatible receiver [object Array]
+TypeError: Method WeakSet.prototype.has called on incompatible receiver 1
+TypeError: Method WeakRef.prototype.deref called on incompatible receiver #<WeakMap>
+TypeError: Method FinalizationRegistry.prototype.register called on incompatible receiver x
+TypeError: '5' returned for property 'set' of object '#<Sub>' is not a function
+false
+added
+added
+true
+true
+true
+true
+TypeError: WeakRef: invalid target
+TypeError: WeakRef: invalid target
+true
+
+
+TypeError: FinalizationRegistry.prototype.register: invalid target
+TypeError: FinalizationRegistry.prototype.register: target and holdings must not be same
+TypeError: Invalid unregisterToken ('2')
+TypeError: Invalid unregisterToken ('2')
+TypeError: Invalid unregisterToken ('Symbol(k)')
+true
+false
+false
+TypeError: FinalizationRegistry: cleanup must be callable
+[object WeakMap]
+[object WeakSet]
+[object WeakRef]
+[object FinalizationRegistry]
+[object WeakMap]
+[object WeakRef]
+constructor,delete,get,set,has
+constructor,delete,has,add
+constructor,deref
+constructor,register,unregister
+0
+0
+1
+1
+2
+1
+WeakMap
+true

@@ -1,0 +1,25 @@
+[package]
+name = "nativeboat-page"
+description = "Native document geometry and scenes for engine-free renderer pages."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+nativeboat-native = { path = "../nativeboat-native", default-features = false, features = ["dom"] }
+nativeboat-dom = { path = "../nativeboat-dom", default-features = false }
+nativeboat-css = { path = "../nativeboat-css", default-features = false }
+nativeboat-layout = { path = "../nativeboat-layout", default-features = false }
+nativeboat-ir = { path = "../nativeboat-ir", default-features = false }
+nativeboat-win32 = { path = "../nativeboat-win32", default-features = false }
+
+[dev-dependencies]
+# Tests run the platform layer per thread, as with std.
+nativeboat-win32 = { path = "../nativeboat-win32" }
+nativeboat-html = { path = "../nativeboat-html", default-features = false }
+shimforge.workspace = true
+
+[lints]
+workspace = true

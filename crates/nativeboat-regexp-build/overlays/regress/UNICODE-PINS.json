@@ -1,0 +1,70 @@
+{
+  "commit": "aae35dee1596cc9a9caaad2425b088081c09e5d5",
+  "files": [
+    {
+      "file": "Cargo.toml",
+      "sha256": "f7c0e89ee8459cf38651e9463cfdf2d1381332f81fdce3860e9065f2556547db"
+    },
+    {
+      "file": "README.md",
+      "sha256": "3e3a5c984802d8af8cc10d1e60ba125c4b0257101c30766b3889e957e4525dc7"
+    },
+    {
+      "file": "src/binary_properties.rs",
+      "sha256": "e30d56f1f0f9f24c24a0b2302fd16da6faa6dd8f2d5a7d285255ef3c67d8e2ab"
+    },
+    {
+      "file": "src/case_folding.rs",
+      "sha256": "a215ba178add4073aa3cbbd34f524f4cd12054240f18353d8f87dd97da35b916"
+    },
+    {
+      "file": "src/general_category_values.rs",
+      "sha256": "1d7cb1934264ef21f3a7fe0971942c75126082d0df3698dff4845d1d8e8ad244"
+    },
+    {
+      "file": "src/main.rs",
+      "sha256": "0857b4bfed9ba50eae4ec5f9b419c2d03da52fd4a5e160f98c1eafad9fa566a7"
+    },
+    {
+      "file": "src/scripts.rs",
+      "sha256": "4116e79943da603cdb090483bf80fa868b32fb388d9f6cc23426f4f968738552"
+    },
+    {
+      "file": "src/string_properties.rs",
+      "sha256": "158676297d36b79e4e6458ed16105f1c70d8ae280bbf9f390f1e9e562b202fb1"
+    },
+    {
+      "file": "src/uppercase.rs",
+      "sha256": "8bf974d0ed6d9f9c3b15f0e33c39a9a99e64d4c0e872138d37a642d81a5f13ca"
+    }
+  ],
+  "unicode_version": "16.0.0",
+  "inputs": [
+    {
+      "url": "https://www.unicode.org/Public/zipped/16.0.0/UCD.zip",
+      "sha256": "c86dd81f2b14a43b0cc064aa5f89aa7241386801e35c59c7984e579832634eb2"
+    },
+    {
+      "url": "https://www.unicode.org/Public/emoji/16.0/emoji-sequences.txt",
+      "sha256": "3fe3c77e72e8f26df302dc7d99b106c5d08fd808ef7246fb5d4502d659fe659c"
+    },
+    {
+      "url": "https://www.unicode.org/Public/emoji/16.0/emoji-zwj-sequences.txt",
+      "sha256": "9423ec235474356f970a696506737e2d5d65453a67f45df66b8bbe920c3fab83"
+    }
+  ],
+  "generated_tables_sha256": "475cb03589f0deb859b9a2ccfb34e3f33026a1e89500524024ce575a135e5daf",
+  "local_changes": [
+    {
+      "file": "Cargo.toml",
+      "sha256": "82e2851bf5eeac360748b229171a4adba9673961fcdfa49270e9b3170e350db7",
+      "change": "adds an empty [workspace] table so the generator builds standalone"
+    },
+    {
+      "file": "src/main.rs",
+      "sha256": "742b9eaf0a645e67196672a6a4ceec5aa5f50fecfc70405c09ad80e0c7f751db",
+      "change": "UCD_PATH names the extracted pinned Unicode 16.0.0 inputs"
+    }
+  ],
+  "generated_tables_note": "digest of the generator's cargo-fmt output; the overlay adds one leading comment line"
+}

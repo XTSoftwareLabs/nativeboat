@@ -1,0 +1,13 @@
+returned function
+no callback: no callback 7
+microtask
+gzip null 31,139,104,105
+gunzip null hi
+bad invalid gzip data 6 null
+queued 2
+chunk Error: stream finished null false
+no handler: no stream handler 5
+chunk null 31,139,97,98 false
+drain 2 1
+chunk null 99 true
+drain 1 0

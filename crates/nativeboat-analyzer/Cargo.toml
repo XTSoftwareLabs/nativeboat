@@ -1,0 +1,20 @@
+[package]
+name = "nativeboat-analyzer"
+description = "Reports which features of an Electron project the native target supports."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+nativeboat-bundler.workspace = true
+nativeboat-css.workspace = true
+nativeboat-html.workspace = true
+nativeboat-project.workspace = true
+oxc.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

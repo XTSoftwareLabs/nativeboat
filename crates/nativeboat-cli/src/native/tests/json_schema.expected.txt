@@ -1,0 +1,11 @@
+true {"folder":"notes","theme":"light","fontSize":16}
+false
+`theme` must be equal to one of the allowed values
+`fontSize` must be <= 32
+`folder` must match pattern "^[a-z]+$"
+`since` should be >= 2020-01-01
+`tags/1` must be string
+`tags` must NOT have duplicate items (items ## 2 and 0 are identical)
+data/theme must be equal to one of the allowed values, data/fontSize must be <= 32, data/folder must match pattern "^[a-z]+$", data/since should be >= 2020-01-01, data/tags/1 must be string, data/tags must NOT have duplicate items (items ## 2 and 0 are identical)
+true false [{"instancePath":"","schemaPath":"#/additionalItems","keyword":"additionalItems","params":{"limit":1},"message":"must NOT have more than 1 items"}]
+strict mode: unknown keyword: "unknownKeyword"

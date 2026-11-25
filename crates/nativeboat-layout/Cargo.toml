@@ -1,0 +1,23 @@
+[package]
+name = "nativeboat-layout"
+description = "Style resolution, layout and native UI tree generation for the logical DOM."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+nativeboat-css = { path = "../nativeboat-css", default-features = false }
+nativeboat-dom = { path = "../nativeboat-dom", default-features = false }
+nativeboat-ir = { path = "../nativeboat-ir", default-features = false }
+nativeboat-html = { path = "../nativeboat-html", default-features = false }
+libm = { version = "=0.2.16", default-features = false }
+taffy = { version = "0.14", default-features = false, features = ["alloc", "taffy_tree", "flexbox", "flexbox_balance", "grid", "block_layout", "float_layout", "calc", "content_size"] }
+
+[lints]
+workspace = true
+
+[features]
+default = ["std"]
+std = ["nativeboat-css/std", "nativeboat-dom/std", "nativeboat-ir/std", "taffy/std"]
