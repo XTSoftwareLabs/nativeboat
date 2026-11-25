@@ -31,6 +31,7 @@ read when the program starts.
 | Variable | Effect |
 | --- | --- |
 | `NATIVEBOAT_JOBS=<n>` | How many generated crates compile at once; `1` keeps memory low. |
+| `NATIVEBOAT_KEEP_GOING` | Compiles every generated crate and reports each one that fails, instead of stopping at the first failure. |
 | `NATIVEBOAT_LINK_MAP=<file>` | Writes the linker map, so native stack samples can be symbolized. |
 | `NATIVEBOAT_MODULE_MAP=<file>` | Appends which source file each compiled module function (`m<index>`) comes from, so profiles name files. Delete the file before a build. |
 

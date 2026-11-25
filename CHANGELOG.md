@@ -99,6 +99,106 @@
   emits `accent-color-changed` and `color-changed`, as in Electron.
 - The `webContents` module finds the contents of the application's
   windows: `getAllWebContents`, `fromId` and `getFocusedWebContents`.
+- Windows take the `icon` option and `setIcon`, and windows without one
+  show the application's icon. `autoHideMenuBar` hides the menu bar until
+  Alt shows it, with `setMenuBarVisibility`, `setAutoHideMenuBar`,
+  `isMenuBarVisible` and `isMenuBarAutoHide`. The `transparent`,
+  `alwaysOnTop` and `skipTaskbar` options work, and Electron's macOS-only
+  window methods, such as `setSimpleFullScreen` and `isDocumentEdited`,
+  exist and behave as Electron's do on Windows.
+- Menus look like Electron's: rounded corners, Chromium's shadow, and
+  shortcuts and submenu arrows sharing the right column.
+- Rounded corners, elliptical ones included, are antialiased as in
+  Chromium, for backgrounds, borders and clipped content. Thin strokes,
+  such as those of icons, keep their weight.
+- SVG files work as images again, in `<img>` and as backgrounds, drawn as
+  vectors at any size.
+- Videos show their poster or first frame and report their duration and
+  loading events, with Chromium's colors and scaling.
+- `nativeImage` behaves as Electron's on Windows: JPEG and icon files,
+  thumbnails at the size asked for, `resize` and `crop` as Chromium does
+  them, `toJPEG`, scale factors and representations, and Electron's
+  errors.
+- Shadow DOM: `attachShadow`, slots, and styles, layout and painting of
+  shadow trees, with `:host` and `::slotted()`. Custom elements:
+  `customElements.define`, upgrades and the lifecycle callbacks.
+  `:lang()`, `:dir()` and `:nth-child(An+B of S)` match, and `@supports`
+  accepts declarations whose values use `var()`.
+- Pages can start dedicated workers. They run on the page's thread, each
+  with a worker global of its own, and exchange messages and errors with
+  the page. A worker can be made from a function's text, since
+  `Function.prototype.toString` returns the source of functions a program
+  reads as text.
+- Message ports: `MessageChannel`, `MessagePort` and `BroadcastChannel`
+  in Node code and in `worker_threads`. Electron's `MessageChannelMain`
+  ports pass between the main process, preloads and pages through
+  `webContents.postMessage`, and `utilityProcess` and
+  `child_process.fork` run modules as child processes with message
+  channels.
+- Node's `crypto` module runs on Windows' cryptography (CNG): MD5, SHA-1
+  and SHA-2 hashes, HMACs, PBKDF2 and HKDF, AES in ECB, CBC, CTR and GCM
+  modes, random values, `timingSafeEqual`, secret keys and X.509
+  certificates. Every page and process has the Web Crypto API:
+  `getRandomValues`, and `crypto.subtle` with SHA digests, HMAC, AES-GCM,
+  AES-CBC, AES-CTR, PBKDF2 and HKDF; other algorithms reject with
+  `NotSupportedError`.
+- Main processes and preloads have Node's `WebSocket` client for `ws:`
+  and `wss:` URLs, through the system's TLS and proxy settings.
+- `@vscode/sqlite3` databases run on Windows' own SQLite (3.38 or later)
+  when the system has it, and otherwise on a built-in engine that covers
+  tables, indexes, constraints, queries, upserts, transactions, pragmas and
+  `ALTER TABLE ... ADD COLUMN` and `RENAME TO`.
+- WebAssembly modules load and run, with the JavaScript API over them.
+  They are interpreted, so they run slower than in Electron.
+- More of Node: `net` servers and clients over Windows named pipes,
+  `vm` contexts (without evaluating code strings), `inspector` (with no
+  debugger attached), `module` resolve hooks and `createRequire`,
+  `diagnostics_channel`, `perf_hooks`, `v8`, `dns`, `util/types`,
+  `process.memoryUsage`, `cpuUsage`, `uptime`, `availableMemory`,
+  `release` and `config`, and a `navigator` global outside pages. A child
+  process's output streams give `Buffer`s until `setEncoding` is called.
+- More of Electron: the `protocol` module's `handle`,
+  `registerFileProtocol`, `registerBufferProtocol` and
+  `registerStringProtocol` serve style sheets, images, fonts, media and
+  `fetch` to pages. `app` has `enableSandbox`, the logs path, `focus`,
+  metrics, GPU status, jump list settings, accessibility support, proxies
+  and protocol clients, and every window shares one default session.
+  `WebContentsView` builds with a warning and throws if used.
+- `nativeboat analyze` reports Windows named pipes in `net`, the system
+  SQLite behind `@vscode/sqlite3`, and top-level `await` as Partial.
+- Native addons the runtime provides in place of their binaries:
+  `@vscode/windows-registry`, `@vscode/deviceid`, `@vscode/windows-mutex`,
+  `@vscode/policy-watcher`, `@vscode/windows-process-tree`,
+  `@vscode/windows-ca-certs`, `@vscode/os-proxy-resolver`,
+  `@vscode/spdlog`, `@vscode/sqlite3`, `@vscode/native-watchdog`,
+  `@parcel/watcher`, `node-pty` and `native-is-elevated`.
+- JavaScript and TypeScript: top-level `await` (a dynamic `import()` waits
+  for the module, a static import does not), `using` and `await using`
+  declarations, TypeScript classes with `experimentalDecorators`, enums
+  and namespaces as `tsc` compiles them, `import x = require()`, and
+  `import()` of a specifier computed when the program runs, among the
+  modules the build can find. A `require` the build cannot satisfy warns
+  at build time and throws `MODULE_NOT_FOUND` when it runs, as in Node.
+- Projects: plugin packages, named by folder globs in the `plugins`
+  setting of a settings file or package.json's `nativeboat` key, are
+  found, get their dependencies installed and compile with the
+  application. Projects that download Electron themselves are recognized,
+  and gulp or grunt tasks that produce files the project's stylesheets
+  name run before compiling. An application's modules and installed
+  packages run from the executable's folder, as a packaged application's
+  do, with the files its production dependencies read at run time beside
+  them.
+- Large applications build: very large modules and long chains of
+  operators compile, and long toolchain command lines no longer fail. The
+  build cache takes about half the disk it did, and rebuilding one part
+  of an application no longer recompiles the parts that depend on it.
+  `NATIVEBOAT_KEEP_GOING` reports every part that fails to compile instead
+  of stopping at the first.
+- `nativeboat analyze` judges a window's `webContents` and the default
+  session member by member, reports `navigator.clipboard.readText` and
+  `writeText` as supported and the rest of the Clipboard API as partial,
+  leaves Vue's `:deep()`, `:slotted()` and `:global()` to Vue, and parses
+  TypeScript as TypeScript.
 
 ## 0.1.0-alpha.4
 
