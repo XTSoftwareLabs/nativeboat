@@ -167,7 +167,7 @@ unsafe extern "system" {
 
 /// `OVERLAPPED`, used for directory notification requests.
 #[repr(C)]
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct Overlapped {
     internal: usize,
     internal_high: usize,
@@ -966,6 +966,7 @@ fn watch_parent_and_name(path: &[u16]) -> (Vec<u16>, Vec<u16>) {
 /// directory's changes from its first request on, so watchers begin the
 /// request on the thread that starts watching, before it reports that the
 /// watch exists, and wait for it on a worker.
+#[derive(Debug)]
 pub struct WatchRequest {
     event: Handle,
     // Boxed: Windows writes to the OVERLAPPED and the buffer until the
@@ -980,6 +981,7 @@ unsafe impl Send for WatchRequest {}
 
 /// A begun notification read: a pending request, or the cancellation or
 /// error that kept it from starting.
+#[derive(Debug)]
 pub struct WatchPending(Result<Option<WatchRequest>, i32>);
 
 /// Begin one directory notification read, unless the watch was cancelled.
