@@ -194,6 +194,11 @@
   of an application no longer recompiles the parts that depend on it.
   `NATIVEBOAT_KEEP_GOING` reports every part that fails to compile instead
   of stopping at the first.
+- `fs.watch` and `@parcel/watcher` report changes made right after a watch
+  starts; on a busy computer the first changes could go unreported. A
+  forked child that sends a message and then disconnects, as in
+  `process.send(message, () => process.disconnect())`, delivers the
+  message before its parent sees `disconnect`.
 - `nativeboat analyze` judges a window's `webContents` and the default
   session member by member, reports `navigator.clipboard.readText` and
   `writeText` as supported and the rest of the Clipboard API as partial,
