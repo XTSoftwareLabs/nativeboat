@@ -474,8 +474,14 @@ class Link {
     this._send({ t: 'm', m: encode(message), p: this._movePorts(ports) });
   }
 
+  // Ends the connection once the frames already sent are written, as Node's
+  // channel delivers what was sent before `disconnect()`; destroying it at
+  // once dropped frames still queued.
   close() {
-    this.socket?.destroy();
+    const socket = this.socket;
+    if (!socket || socket.destroyed) return;
+    if (socket.writable) socket.end();
+    else socket.destroy();
   }
 }
 

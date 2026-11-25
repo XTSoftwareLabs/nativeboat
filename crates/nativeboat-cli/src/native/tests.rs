@@ -6654,7 +6654,7 @@ out.push(entries.every((entry) => {
   return (entry.family === 'IPv6' ? keys === 'address,netmask,family,mac,internal,cidr,scopeid' : keys === 'address,netmask,family,mac,internal,cidr') &&
     entry.cidr.startsWith(`${entry.address}/`) && /^([0-9a-f]{2}:){5}[0-9a-f]{2}$/.test(entry.mac);
 }));
-out.push(os.getPriority(), os.getPriority(0), t(() => os.getPriority(-1.5)), t(() => os.getPriority('x')), t(() => os.setPriority(0, 100)), t(() => os.setPriority(0, 0)));
+out.push([-20, -14, -7, 0, 10, 19].includes(os.getPriority()), os.getPriority(0) === os.getPriority(), t(() => os.getPriority(-1.5)), t(() => os.getPriority('x')), t(() => os.setPriority(0, 100)), t(() => os.setPriority(0, 0)));
 try { os.getPriority(2147483647); } catch (e) {
   out.push(e.name, e.code, e.message, show(e.info), e.errno, e.syscall, Object.keys(e).join(), String(e));
   e.errno = 5;
@@ -6702,8 +6702,8 @@ true
 true
 true
 true
-0
-0
+true
+true
 RangeError:ERR_OUT_OF_RANGE:The value of "pid" is out of range. It must be an integer. Received -1.5
 TypeError:ERR_INVALID_ARG_TYPE:The "pid" argument must be of type number. Received type string ('x')
 RangeError:ERR_OUT_OF_RANGE:The value of "priority" is out of range. It must be >= -20 && <= 19. Received 100

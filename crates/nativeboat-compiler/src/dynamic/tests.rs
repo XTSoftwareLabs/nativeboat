@@ -297,26 +297,32 @@ fn runtime() -> &'static PathBuf {
             .parent()
             .expect("test dependencies directory has a target directory")
             .join(".fingerprint");
-        let miniz_oxide = fs::read_dir(&fingerprint_directory)
+        // Cargo's builds of miniz_oxide with the runtime's with-alloc
+        // feature, non-SIMD first. A package's own tests build a separate
+        // SIMD variant for another dev dependency; a workspace build unifies
+        // the features into one build, whose dependencies are in the same
+        // deps directory.
+        let mut candidates: Vec<(bool, PathBuf)> = fs::read_dir(&fingerprint_directory)
             .unwrap()
             .flatten()
-            .find_map(|entry| {
+            .filter_map(|entry| {
                 let name = entry.file_name().to_string_lossy().into_owned();
-                if !name.starts_with("miniz_oxide-") {
-                    return None;
-                }
+                let hash = name.strip_prefix("miniz_oxide-")?.to_owned();
                 let fingerprint =
                     fs::read_to_string(entry.path().join("lib-miniz_oxide.json")).ok()?;
-                // Select the native runtime's non-SIMD Cargo build; another
-                // dev dependency enables a separate SIMD variant.
-                fingerprint
-                    .contains("\"features\":\"[\\\"default\\\", \\\"with-alloc\\\"]\"")
-                    .then(|| {
-                        let hash = name.strip_prefix("miniz_oxide-").unwrap();
-                        cargo_dependencies.join(format!("libminiz_oxide-{hash}.rlib"))
-                    })
+                if !fingerprint.contains("\\\"with-alloc\\\"") {
+                    return None;
+                }
+                let simd = fingerprint.contains("\\\"simd\\\"");
+                let rlib = cargo_dependencies.join(format!("libminiz_oxide-{hash}.rlib"));
+                rlib.is_file().then_some((simd, rlib))
             })
-            .filter(|path| path.is_file())
+            .collect();
+        candidates.sort();
+        let miniz_oxide = candidates
+            .into_iter()
+            .next()
+            .map(|(_, rlib)| rlib)
             .expect("Cargo builds the native runtime's packaged miniz_oxide dependency");
         let matcher = staging.join("regexp");
         nativeboat_regexp_build::build(&matcher, &mut |args, directory| {

@@ -28,6 +28,7 @@
 #[allow(unused_imports)]
 use crate::prelude::*;
 use crate::uv_error::translate;
+use alloc::boxed::Box;
 use alloc::{collections::VecDeque, sync::Arc, vec};
 use core::ffi::c_void;
 use core::sync::atomic::{AtomicBool, Ordering};
@@ -961,59 +962,100 @@ fn watch_parent_and_name(path: &[u16]) -> (Vec<u16>, Vec<u16>) {
     }
 }
 
-/// Wait for one directory notification. Cancellation is checked between short
-/// waits, and the overlapped request is canceled before its event is released.
+/// A directory notification request Windows is filling. Windows records a
+/// directory's changes from its first request on, so watchers begin the
+/// request on the thread that starts watching, before it reports that the
+/// watch exists, and wait for it on a worker.
+pub struct WatchRequest {
+    event: Handle,
+    // Boxed: Windows writes to the OVERLAPPED and the buffer until the
+    // request completes, wherever the request moves meanwhile.
+    overlapped: Box<Overlapped>,
+    buffer: Vec<u8>,
+}
+
+// SAFETY: the request owns its heap buffers and event handle; Windows
+// completes it whichever thread waits for it.
+unsafe impl Send for WatchRequest {}
+
+/// A begun notification read: a pending request, or the cancellation or
+/// error that kept it from starting.
+pub struct WatchPending(Result<Option<WatchRequest>, i32>);
+
+/// Begin one directory notification read, unless the watch was cancelled.
 /// # Safety
-/// `handle` must be an open directory handle owned by the watcher until this
-/// call returns; the same handle must not be closed concurrently.
-pub unsafe fn watch_read(
+/// `handle` must be an open directory handle owned by the watcher until the
+/// read is completed with [`watch_complete`].
+pub unsafe fn watch_begin(
     handle: Handle,
     recursive: bool,
     cancelled: &Arc<AtomicBool>,
-) -> Result<Option<WatchChanges>, i32> {
+) -> WatchPending {
     if cancelled.load(Ordering::Acquire) {
-        return Ok(None);
+        return WatchPending(Ok(None));
     }
     // SAFETY: a manual-reset event is owned until this request completes.
     let event = unsafe { CreateEventW(core::ptr::null_mut(), 1, 0, core::ptr::null()) };
     if event.is_null() {
-        return Err(translate(last_error()));
+        return WatchPending(Err(translate(last_error())));
     }
-    let mut overlapped = Overlapped {
+    let mut request = WatchRequest {
         event,
-        ..Overlapped::default()
+        overlapped: Box::new(Overlapped {
+            event,
+            ..Overlapped::default()
+        }),
+        buffer: vec![0_u8; 64 * 1024],
     };
-    let mut buffer = vec![0_u8; 64 * 1024];
     let filter = FILE_NOTIFY_CHANGE_FILE_NAME
         | FILE_NOTIFY_CHANGE_DIR_NAME
         | FILE_NOTIFY_CHANGE_ATTRIBUTES
         | FILE_NOTIFY_CHANGE_SIZE
         | FILE_NOTIFY_CHANGE_LAST_WRITE;
-    // SAFETY: the open directory handle, writable buffer and OVERLAPPED all
-    // remain alive until the event signals or cancellation completes.
+    // SAFETY: the open directory handle, the heap buffer and the boxed
+    // OVERLAPPED all remain alive until the event signals or cancellation
+    // completes in `watch_complete`.
     let started = unsafe {
         ReadDirectoryChangesW(
             handle,
-            buffer.as_mut_ptr(),
-            buffer.len() as u32,
+            request.buffer.as_mut_ptr(),
+            request.buffer.len() as u32,
             i32::from(recursive),
             filter,
             core::ptr::null_mut(),
-            &mut overlapped,
+            &mut *request.overlapped,
             None,
         )
     };
     if started == 0 {
         let error = last_error();
         close_handle(event);
-        return Err(translate(error));
+        return WatchPending(Err(translate(error)));
     }
+    WatchPending(Ok(Some(request)))
+}
 
+/// Wait for a begun notification read. Cancellation is checked between short
+/// waits, and the overlapped request is canceled before its event is released.
+/// # Safety
+/// `handle` must be the open directory handle `pending` was begun on; the
+/// same handle must not be closed concurrently.
+pub unsafe fn watch_complete(
+    handle: Handle,
+    pending: WatchPending,
+    cancelled: &Arc<AtomicBool>,
+) -> Result<Option<WatchChanges>, i32> {
+    let mut request = match pending.0 {
+        Ok(Some(request)) => request,
+        Ok(None) => return Ok(None),
+        Err(error) => return Err(error),
+    };
+    let event = request.event;
     loop {
         if cancelled.load(Ordering::Acquire) {
             // SAFETY: this handle is open and this request belongs to it.
             unsafe {
-                CancelIoEx(handle, &mut overlapped);
+                CancelIoEx(handle, &mut *request.overlapped);
             }
         }
         // SAFETY: the event remains open through completion below.
@@ -1022,18 +1064,18 @@ pub unsafe fn watch_read(
             WAIT_TIMEOUT => continue,
             WAIT_FAILED => {
                 let error = last_error();
-                // SAFETY: cancel before the stack-owned request is dropped.
+                // SAFETY: cancel before the request is dropped.
                 unsafe {
-                    CancelIoEx(handle, &mut overlapped);
+                    CancelIoEx(handle, &mut *request.overlapped);
                     WaitForSingleObject(event, u32::MAX);
                 }
                 close_handle(event);
                 return Err(translate(error));
             }
             _ => {
-                // SAFETY: cancel before the stack-owned request is dropped.
+                // SAFETY: cancel before the request is dropped.
                 unsafe {
-                    CancelIoEx(handle, &mut overlapped);
+                    CancelIoEx(handle, &mut *request.overlapped);
                     WaitForSingleObject(event, u32::MAX);
                 }
                 close_handle(event);
@@ -1048,7 +1090,8 @@ pub unsafe fn watch_read(
     }
     let mut returned = 0_u32;
     // SAFETY: the signaled event completed the request and `returned` is writable.
-    let succeeded = unsafe { GetOverlappedResult(handle, &mut overlapped, &mut returned, 0) };
+    let succeeded =
+        unsafe { GetOverlappedResult(handle, &mut *request.overlapped, &mut returned, 0) };
     if succeeded == 0 {
         let error = last_error();
         close_handle(event);
@@ -1058,7 +1101,24 @@ pub unsafe fn watch_read(
         return Err(translate(error));
     }
     close_handle(event);
-    parse_watch_changes(&buffer, returned as usize).map(Some)
+    parse_watch_changes(&request.buffer, returned as usize).map(Some)
+}
+
+/// Wait for one directory notification: [`watch_begin`] then
+/// [`watch_complete`] on the calling thread.
+/// # Safety
+/// `handle` must be an open directory handle owned by the watcher until this
+/// call returns; the same handle must not be closed concurrently.
+pub unsafe fn watch_read(
+    handle: Handle,
+    recursive: bool,
+    cancelled: &Arc<AtomicBool>,
+) -> Result<Option<WatchChanges>, i32> {
+    // SAFETY: the caller's guarantees cover both halves of the read.
+    unsafe {
+        let pending = watch_begin(handle, recursive, cancelled);
+        watch_complete(handle, pending, cancelled)
+    }
 }
 
 /// Cancel a pending request without releasing its handle before completion.
