@@ -633,8 +633,14 @@ fn eval_has_stable_identity_without_evaluating_or_coercing_input() {
 fn to_string_returns_kept_source_text_or_the_native_code_form() {
     let mut realm = Realm::new();
     let to_string = method(&mut realm, "toString");
-    equal(&value(&mut realm, &to_string, "name"), &Value::str("toString"));
-    equal(&value(&mut realm, &to_string, "length"), &Value::Number(0.0));
+    equal(
+        &value(&mut realm, &to_string, "name"),
+        &Value::str("toString"),
+    );
+    equal(
+        &value(&mut realm, &to_string, "length"),
+        &Value::Number(0.0),
+    );
     let property = realm
         .function_prototype
         .own_property(&Key::name("toString"))
@@ -671,7 +677,11 @@ fn to_string_returns_kept_source_text_or_the_native_code_form() {
     );
 
     // Other values are refused.
-    for receiver in [Value::Object(realm.object()), Value::Number(1.0), Value::Undefined] {
+    for receiver in [
+        Value::Object(realm.object()),
+        Value::Number(1.0),
+        Value::Undefined,
+    ] {
         let error = ops::call(&mut realm, &to_string, receiver, &[]).unwrap_err();
         let message = format!("{:?}", error);
         assert!(!message.is_empty());

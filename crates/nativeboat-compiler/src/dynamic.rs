@@ -599,7 +599,8 @@ impl<'a> Visit<'a> for Collector<'_> {
                         .insert(id.symbol_id(), function.span.start);
                 }
                 Expression::ArrowFunctionExpression(arrow) => {
-                    self.function_bindings.insert(id.symbol_id(), arrow.span.start);
+                    self.function_bindings
+                        .insert(id.symbol_id(), arrow.span.start);
                 }
                 _ => {}
             }
@@ -624,8 +625,7 @@ impl<'a> Visit<'a> for Collector<'_> {
                         .symbol_id()
                         .is_none() =>
             {
-                if let Some(argument) = call.arguments.first().and_then(Argument::as_expression)
-                {
+                if let Some(argument) = call.arguments.first().and_then(Argument::as_expression) {
                     self.stringified(argument);
                 }
             }
