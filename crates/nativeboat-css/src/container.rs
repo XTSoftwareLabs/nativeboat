@@ -58,17 +58,23 @@ impl ContainerCondition {
                 result
             }
             ContainerCondition::Not(inner) => inner.evaluate(container).map(|result| !result),
-            ContainerCondition::And(parts) => parts.iter().fold(Some(true), |result, part| {
-                and(result, part.evaluate(container))
-            }),
+            ContainerCondition::And(parts) => {
+                let mut result = Some(true);
+                for part in parts {
+                    result = and(result, part.evaluate(container));
+                }
+                result
+            }
             ContainerCondition::Or(parts) => {
-                parts.iter().fold(Some(false), |result, part| {
-                    match (result, part.evaluate(container)) {
+                let mut result = Some(false);
+                for part in parts {
+                    result = match (result, part.evaluate(container)) {
                         (Some(true), _) | (_, Some(true)) => Some(true),
                         (Some(false), Some(false)) => Some(false),
                         _ => None,
-                    }
-                })
+                    };
+                }
+                result
             }
             ContainerCondition::Unknown => None,
         }
