@@ -8414,7 +8414,8 @@ fibWorker.onmessage = (event) => { window.native.log(`function ${event.data.valu
 /// A page's `<iframe>` shows a compiled document in a realm of its own:
 /// the frame's inline script runs, the element gets `load`, the two
 /// windows exchange messages with their sources and transferred ports, and
-/// the frame's window takes the element's content box when it changes.
+/// the frame's window takes the element's content box when it changes,
+/// which the frame sees in its animation frames.
 #[test]
 #[ignore = "requires NATIVEBOAT_RENDERER_TOOLCHAIN with packaged renderer libraries"]
 fn page_frames_run_their_documents_and_exchange_messages() {
@@ -8468,7 +8469,7 @@ frame.addEventListener('load', () => {
                if (event.data === 'measure') {\n\
                  const started = Date.now();\n\
                  const poll = () => (innerWidth === 260 && innerHeight === 120) || Date.now() - started > 3000\n\
-                   ? parent.postMessage(`size ${innerWidth}x${innerHeight}`, '*') : setTimeout(poll, 20);\n\
+                   ? parent.postMessage(`size ${innerWidth}x${innerHeight}`, '*') : requestAnimationFrame(poll);\n\
                  poll();\n\
                  return;\n\
                }\n\
