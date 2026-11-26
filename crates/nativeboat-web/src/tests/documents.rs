@@ -114,6 +114,6 @@ fn document_write_replaces_the_document_and_loads_it_again() {
       globalThis.writtenErrors=[];document.addEventListener('error',(event)=>writtenErrors.push(event.target.id),true);
       document.open();document.write('<img id=written src="missing.png">');document.close();
     "#);
-    page.run_tasks();
+    page.settle();
     page.check("eq(writtenErrors.join(),'written','written images load');");
 }
