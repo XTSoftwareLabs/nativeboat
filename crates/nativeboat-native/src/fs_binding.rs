@@ -465,6 +465,9 @@ fn resolve_units(
         absolute.truncate(length as usize);
         break;
     }
+    if let Some(unpacked) = crate::fs_win::without_asar(&absolute) {
+        absolute = unpacked;
+    }
     let prefix: Vec<u16> = "\\\\?\\".encode_utf16().collect();
     let unc: Vec<u16> = "\\\\?\\UNC\\".encode_utf16().collect();
     let plain = if absolute.starts_with(&unc) {
