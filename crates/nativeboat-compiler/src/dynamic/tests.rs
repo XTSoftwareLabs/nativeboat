@@ -240,214 +240,236 @@ fn workspace_target() -> PathBuf {
 /// Builds the start crate and the native value library once per test
 /// process, as `nativeboat build` does: no Rust `std`, panics abort.
 fn runtime() -> &'static PathBuf {
-    static RUNTIME: OnceLock<PathBuf> = OnceLock::new();
-    RUNTIME.get_or_init(|| {
-        let crates = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
-        // The libraries are keyed by every source they compile and by the
-        // compiler, reused by later test runs, and stale builds are removed,
-        // so test runs neither rebuild them nor accumulate copies.
-        let mut hasher = std::hash::DefaultHasher::new();
-        let version = Command::new("rustc").arg("-vV").output().unwrap();
-        std::hash::Hash::hash(&version.stdout, &mut hasher);
-        for source in [
-            ("nativeboat-native/src", true),
-            ("nativeboat-start/src", false),
-            ("nativeboat-regexp/src", false),
-            ("nativeboat-regexp-build/src", false),
-            ("nativeboat-regexp-build/overlays", false),
-            ("nativeboat-regexp-build/vendor", false),
-            ("nativeboat-url-build/src", false),
-            ("nativeboat-url-build/overlays", false),
-            ("nativeboat-url-build/vendor", false),
-            ("nativeboat-encoding-build/src", false),
-            ("nativeboat-cli/vendor/adler2-2.0.1", false),
-            ("nativeboat-cli/vendor/miniz_oxide-0.9.1", false),
-        ] {
-            let root = crates.join(source.0);
-            if source.1 {
-                // The standalone rustc runtime build does not enable cfg(test).
-                // Exclude the native crate's tests so coverage-only edits reuse
-                // its production rlib instead of rebuilding the runtime.
-                hash_tree_without_tests(&root, &mut hasher);
-            } else {
-                hash_tree(&root, &mut hasher);
-            }
-        }
-        let name = format!("runtime-{:016x}", std::hash::Hasher::finish(&hasher));
-        let directory = workspace_target().join(&name);
-        if directory.join("libnativeboat_native.rlib").is_file() {
-            return directory;
-        }
-        fs::create_dir_all(workspace_target()).unwrap();
-        for entry in fs::read_dir(workspace_target()).unwrap().flatten() {
-            let stale = entry.file_name().to_string_lossy().starts_with("runtime-");
-            if stale && entry.file_name() != name.as_str() {
-                // Another test process may still use it; then it stays.
-                let _ = fs::remove_dir_all(entry.path());
-            }
-        }
-        let staging = workspace_target().join(format!(".{name}-{}", std::process::id()));
-        fs::create_dir_all(&staging).unwrap();
-        let cargo_dependencies = std::env::current_exe()
-            .unwrap()
-            .parent()
-            .expect("test executable has a dependencies directory")
-            .to_path_buf();
-        let fingerprint_directory = cargo_dependencies
-            .parent()
-            .expect("test dependencies directory has a target directory")
-            .join(".fingerprint");
-        // Cargo's builds of miniz_oxide with the runtime's with-alloc
-        // feature, non-SIMD first. A package's own tests build a separate
-        // SIMD variant for another dev dependency; a workspace build unifies
-        // the features into one build, whose dependencies are in the same
-        // deps directory.
-        let mut candidates: Vec<(bool, PathBuf)> = fs::read_dir(&fingerprint_directory)
-            .unwrap()
-            .flatten()
-            .filter_map(|entry| {
-                let name = entry.file_name().to_string_lossy().into_owned();
-                let hash = name.strip_prefix("miniz_oxide-")?.to_owned();
-                let fingerprint =
-                    fs::read_to_string(entry.path().join("lib-miniz_oxide.json")).ok()?;
-                if !fingerprint.contains("\\\"with-alloc\\\"") {
-                    return None;
-                }
-                let simd = fingerprint.contains("\\\"simd\\\"");
-                let rlib = cargo_dependencies.join(format!("libminiz_oxide-{hash}.rlib"));
-                rlib.is_file().then_some((simd, rlib))
-            })
-            .collect();
-        candidates.sort();
-        let miniz_oxide = candidates
-            .into_iter()
-            .next()
-            .map(|(_, rlib)| rlib)
-            .expect("Cargo builds the native runtime's packaged miniz_oxide dependency");
-        let matcher = staging.join("regexp");
-        nativeboat_regexp_build::build(&matcher, &mut |args, directory| {
-            let built = Command::new("rustc")
-                .args(args)
-                .current_dir(directory)
-                .output()
-                .map_err(|error| error.to_string())?;
-            if built.status.success() {
-                Ok(())
-            } else {
-                Err(String::from_utf8_lossy(&built.stderr).into_owned())
-            }
-        })
-        .unwrap();
-        let url = staging.join("url");
-        nativeboat_url_build::build(&url, &mut |args, directory| {
-            let built = Command::new("rustc")
-                .args(args)
-                .current_dir(directory)
-                .output()
-                .map_err(|error| error.to_string())?;
-            if built.status.success() {
-                Ok(())
-            } else {
-                Err(String::from_utf8_lossy(&built.stderr).into_owned())
-            }
-        })
-        .unwrap();
-        let encoding = staging.join("encoding");
-        nativeboat_encoding_build::build_with_shared_memchr(
-            &encoding,
-            Some(&matcher.join("libmemchr.rlib")),
-            &mut |args, directory| {
-                let built = Command::new("rustc")
-                    .args(args)
-                    .current_dir(directory)
-                    .output()
-                    .map_err(|error| error.to_string())?;
-                if built.status.success() {
-                    Ok(())
-                } else {
-                    Err(String::from_utf8_lossy(&built.stderr).into_owned())
-                }
-            },
-        )
-        .unwrap();
-        let start = staging.join("start");
-        fs::create_dir(&start).unwrap();
-        fs::copy(
-            crates.join("nativeboat-start/src/lib.rs"),
-            start.join("lib.rs"),
-        )
-        .unwrap();
-        let notices = format!(
-            "{}\n{}\n{}\n{}",
-            fs::read_to_string(crates.join("nativeboat-start/src/NOTICES.txt")).unwrap(),
-            nativeboat_regexp_build::NOTICES,
-            nativeboat_url_build::NOTICES,
-            nativeboat_encoding_build::NOTICES
-        );
-        fs::write(start.join("NOTICES.txt"), notices).unwrap();
-        let published_matcher = directory.join("regexp");
-        for (name, library) in [
-            ("nativeboat_start", "nativeboat-start/src/lib.rs"),
-            ("nativeboat_native", "nativeboat-native/src/lib.rs"),
-        ] {
-            let source = if name == "nativeboat_start" {
-                start.join("lib.rs")
-            } else {
-                crates.join(library)
-            };
-            let built = Command::new("rustc")
-                .args(["--edition=2024", "--crate-type=rlib", "--crate-name", name])
-                .args([
-                    "-C",
-                    "opt-level=1",
-                    "-C",
-                    "debuginfo=0",
-                    "-C",
-                    "panic=abort",
-                ])
-                .arg(format!(
-                    "--extern=nativeboat_regexp={}",
-                    matcher.join("libnativeboat_regexp.rlib").display()
-                ))
-                .arg(format!("-Ldependency={}", matcher.display()))
-                .arg(format!(
-                    "--extern=url={}",
-                    url.join("liburl.rlib").display()
-                ))
-                .arg(format!(
-                    "--extern=idna={}",
-                    url.join("libidna.rlib").display()
-                ))
-                .arg(format!("-Ldependency={}", url.display()))
-                .arg(format!(
-                    "--extern=chardetng={}",
-                    encoding.join("libchardetng.rlib").display()
-                ))
-                .arg(format!("-Ldependency={}", encoding.display()))
-                .arg(format!("--extern=miniz_oxide={}", miniz_oxide.display()))
-                .arg(format!("-Ldependency={}", cargo_dependencies.display()))
-                .arg(source)
-                .arg("--out-dir")
-                .arg(&staging)
-                .output()
-                .unwrap();
-            assert!(
-                built.status.success(),
-                "{}",
-                String::from_utf8_lossy(&built.stderr)
+    static RUNTIME: OnceLock<Result<PathBuf, String>> = OnceLock::new();
+    let built = RUNTIME.get_or_init(|| {
+        std::panic::catch_unwind(build_runtime).map_err(|panic| {
+            let message = panic
+                .downcast_ref::<String>()
+                .cloned()
+                .or_else(|| panic.downcast_ref::<&str>().map(|text| text.to_string()))
+                .unwrap_or_else(|| "the build panicked".to_owned());
+            // Every test needs the runtime, so a failed build fails the
+            // others at once instead of each building it again, and its
+            // error is shown while the tests still run.
+            use std::io::Write;
+            let _ = writeln!(
+                std::io::stderr(),
+                "the native runtime did not build: {message}"
             );
+            message
+        })
+    });
+    match built {
+        Ok(directory) => directory,
+        Err(message) => panic!("the native runtime did not build: {message}"),
+    }
+}
+
+fn build_runtime() -> PathBuf {
+    let crates = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    // The libraries are keyed by every source they compile and by the
+    // compiler, reused by later test runs, and stale builds are removed,
+    // so test runs neither rebuild them nor accumulate copies.
+    let mut hasher = std::hash::DefaultHasher::new();
+    let version = Command::new("rustc").arg("-vV").output().unwrap();
+    std::hash::Hash::hash(&version.stdout, &mut hasher);
+    for source in [
+        ("nativeboat-native/src", true),
+        ("nativeboat-start/src", false),
+        ("nativeboat-regexp/src", false),
+        ("nativeboat-regexp-build/src", false),
+        ("nativeboat-regexp-build/overlays", false),
+        ("nativeboat-regexp-build/vendor", false),
+        ("nativeboat-url-build/src", false),
+        ("nativeboat-url-build/overlays", false),
+        ("nativeboat-url-build/vendor", false),
+        ("nativeboat-encoding-build/src", false),
+        ("nativeboat-cli/vendor/adler2-2.0.1", false),
+        ("nativeboat-cli/vendor/miniz_oxide-0.9.1", false),
+    ] {
+        let root = crates.join(source.0);
+        if source.1 {
+            // The standalone rustc runtime build does not enable cfg(test).
+            // Exclude the native crate's tests so coverage-only edits reuse
+            // its production rlib instead of rebuilding the runtime.
+            hash_tree_without_tests(&root, &mut hasher);
+        } else {
+            hash_tree(&root, &mut hasher);
         }
-        // A concurrent test process may have published the same build.
-        if fs::rename(&staging, &directory).is_err() {
-            let _ = fs::remove_dir_all(&staging);
+    }
+    let name = format!("runtime-{:016x}", std::hash::Hasher::finish(&hasher));
+    let directory = workspace_target().join(&name);
+    if directory.join("libnativeboat_native.rlib").is_file() {
+        return directory;
+    }
+    fs::create_dir_all(workspace_target()).unwrap();
+    for entry in fs::read_dir(workspace_target()).unwrap().flatten() {
+        let stale = entry.file_name().to_string_lossy().starts_with("runtime-");
+        if stale && entry.file_name() != name.as_str() {
+            // Another test process may still use it; then it stays.
+            let _ = fs::remove_dir_all(entry.path());
         }
-        assert!(
-            published_matcher
-                .join("libnativeboat_regexp.rlib")
-                .is_file()
-        );
-        directory
+    }
+    let staging = workspace_target().join(format!(".{name}-{}", std::process::id()));
+    fs::create_dir_all(&staging).unwrap();
+    let cargo_dependencies = std::env::current_exe()
+        .unwrap()
+        .parent()
+        .expect("test executable has a dependencies directory")
+        .to_path_buf();
+    let fingerprint_directory = cargo_dependencies
+        .parent()
+        .expect("test dependencies directory has a target directory")
+        .join(".fingerprint");
+    // Cargo's builds of miniz_oxide with the runtime's with-alloc
+    // feature, non-SIMD first. A package's own tests build a separate
+    // SIMD variant for another dev dependency; a workspace build unifies
+    // the features into one build, whose dependencies are in the same
+    // deps directory.
+    let mut candidates: Vec<(bool, PathBuf)> = fs::read_dir(&fingerprint_directory)
+        .unwrap()
+        .flatten()
+        .filter_map(|entry| {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let hash = name.strip_prefix("miniz_oxide-")?.to_owned();
+            let fingerprint = fs::read_to_string(entry.path().join("lib-miniz_oxide.json")).ok()?;
+            if !fingerprint.contains("\\\"with-alloc\\\"") {
+                return None;
+            }
+            let simd = fingerprint.contains("\\\"simd\\\"");
+            let rlib = cargo_dependencies.join(format!("libminiz_oxide-{hash}.rlib"));
+            rlib.is_file().then_some((simd, rlib))
+        })
+        .collect();
+    candidates.sort();
+    let miniz_oxide = candidates
+        .into_iter()
+        .next()
+        .map(|(_, rlib)| rlib)
+        .expect("Cargo builds the native runtime's packaged miniz_oxide dependency");
+    let matcher = staging.join("regexp");
+    nativeboat_regexp_build::build(&matcher, &mut |args, directory| {
+        let built = Command::new("rustc")
+            .args(args)
+            .current_dir(directory)
+            .output()
+            .map_err(|error| error.to_string())?;
+        if built.status.success() {
+            Ok(())
+        } else {
+            Err(String::from_utf8_lossy(&built.stderr).into_owned())
+        }
     })
+    .unwrap();
+    let url = staging.join("url");
+    nativeboat_url_build::build(&url, &mut |args, directory| {
+        let built = Command::new("rustc")
+            .args(args)
+            .current_dir(directory)
+            .output()
+            .map_err(|error| error.to_string())?;
+        if built.status.success() {
+            Ok(())
+        } else {
+            Err(String::from_utf8_lossy(&built.stderr).into_owned())
+        }
+    })
+    .unwrap();
+    let encoding = staging.join("encoding");
+    nativeboat_encoding_build::build_with_shared_memchr(
+        &encoding,
+        Some(&matcher.join("libmemchr.rlib")),
+        &mut |args, directory| {
+            let built = Command::new("rustc")
+                .args(args)
+                .current_dir(directory)
+                .output()
+                .map_err(|error| error.to_string())?;
+            if built.status.success() {
+                Ok(())
+            } else {
+                Err(String::from_utf8_lossy(&built.stderr).into_owned())
+            }
+        },
+    )
+    .unwrap();
+    let start = staging.join("start");
+    fs::create_dir(&start).unwrap();
+    fs::copy(
+        crates.join("nativeboat-start/src/lib.rs"),
+        start.join("lib.rs"),
+    )
+    .unwrap();
+    let notices = format!(
+        "{}\n{}\n{}\n{}",
+        fs::read_to_string(crates.join("nativeboat-start/src/NOTICES.txt")).unwrap(),
+        nativeboat_regexp_build::NOTICES,
+        nativeboat_url_build::NOTICES,
+        nativeboat_encoding_build::NOTICES
+    );
+    fs::write(start.join("NOTICES.txt"), notices).unwrap();
+    let published_matcher = directory.join("regexp");
+    for (name, library) in [
+        ("nativeboat_start", "nativeboat-start/src/lib.rs"),
+        ("nativeboat_native", "nativeboat-native/src/lib.rs"),
+    ] {
+        let source = if name == "nativeboat_start" {
+            start.join("lib.rs")
+        } else {
+            crates.join(library)
+        };
+        let built = Command::new("rustc")
+            .args(["--edition=2024", "--crate-type=rlib", "--crate-name", name])
+            .args([
+                "-C",
+                "opt-level=1",
+                "-C",
+                "debuginfo=0",
+                "-C",
+                "panic=abort",
+            ])
+            .arg(format!(
+                "--extern=nativeboat_regexp={}",
+                matcher.join("libnativeboat_regexp.rlib").display()
+            ))
+            .arg(format!("-Ldependency={}", matcher.display()))
+            .arg(format!(
+                "--extern=url={}",
+                url.join("liburl.rlib").display()
+            ))
+            .arg(format!(
+                "--extern=idna={}",
+                url.join("libidna.rlib").display()
+            ))
+            .arg(format!("-Ldependency={}", url.display()))
+            .arg(format!(
+                "--extern=chardetng={}",
+                encoding.join("libchardetng.rlib").display()
+            ))
+            .arg(format!("-Ldependency={}", encoding.display()))
+            .arg(format!("--extern=miniz_oxide={}", miniz_oxide.display()))
+            .arg(format!("-Ldependency={}", cargo_dependencies.display()))
+            .arg(source)
+            .arg("--out-dir")
+            .arg(&staging)
+            .output()
+            .unwrap();
+        assert!(
+            built.status.success(),
+            "{}",
+            String::from_utf8_lossy(&built.stderr)
+        );
+    }
+    // A concurrent test process may have published the same build.
+    if fs::rename(&staging, &directory).is_err() {
+        let _ = fs::remove_dir_all(&staging);
+    }
+    assert!(
+        published_matcher
+            .join("libnativeboat_regexp.rlib")
+            .is_file()
+    );
+    directory
 }
 
 /// Hashes the names and contents of every file below `directory`.
