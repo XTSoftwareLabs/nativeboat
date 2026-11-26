@@ -2248,6 +2248,16 @@ impl Builder<'_> {
         {
             return (0.0, 0.0, Some(width / height));
         }
+        // A frame shows another document, never its `src` as a picture: it
+        // is 300×150 unless its attributes size it, with no ratio to keep,
+        // as in Chromium.
+        if self.dom.local_name(element) == Some("iframe") {
+            return (
+                attribute("width").unwrap_or(300.0),
+                attribute("height").unwrap_or(150.0),
+                None,
+            );
+        }
         let video = self.dom.local_name(element) == Some("video");
         let picture = video
             .then(|| video_picture(self.dom, element))

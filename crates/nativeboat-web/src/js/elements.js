@@ -1889,8 +1889,26 @@ class HTMLIFrameElement extends HTMLElement {
   get contentDocument() {
     return null;
   }
+
+  get sandbox() {
+    return tokenList(this, 'sandbox');
+  }
+
+  set sandbox(value) {
+    this.setAttribute('sandbox', value);
+  }
 }
-reflect(HTMLIFrameElement.prototype, [['src', null, 'url'], ['name'], ['allow'], ['width'], ['height']]);
+reflect(HTMLIFrameElement.prototype, [
+  ['src', null, 'url'],
+  ['srcdoc'],
+  ['name'],
+  ['allow'],
+  ['allowFullscreen', 'allowfullscreen', 'boolean'],
+  ['width'],
+  ['height'],
+  ['referrerPolicy', 'referrerpolicy'],
+  ['loading', null, 'string', 'eager'],
+]);
 register(HTMLIFrameElement, ['iframe']);
 
 const HTMLScriptElement = defineElement('HTMLScriptElement', ['script']);
