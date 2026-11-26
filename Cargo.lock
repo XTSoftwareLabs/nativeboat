@@ -1183,6 +1183,7 @@ dependencies = [
  "indexmap",
  "json5",
  "nativeboat-bundler",
+ "nativeboat-html",
  "oxc",
  "ryu-js",
  "serde",

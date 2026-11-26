@@ -158,6 +158,7 @@ const SCRIPT: &str = concat!(
     include_str!("js/canvas.js"),
     include_str!("js/xhr.js"),
     include_str!("js/window.js"),
+    include_str!("js/frames.js"),
     include_str!("js/editing.js"),
     include_str!("js/composition.js"),
     include_str!("js/editing-history.js"),
