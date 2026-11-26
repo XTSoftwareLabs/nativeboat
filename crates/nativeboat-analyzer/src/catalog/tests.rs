@@ -657,7 +657,7 @@ fn css_features() {
 #[test]
 fn language_features() {
     assert_eq!(support(language("decorators")), Unsupported);
-    assert_eq!(support(language("top-level-await")), Unsupported);
+    assert_eq!(support(language("top-level-await")), Partial);
     assert_eq!(support(language("dynamic-require")), Partial);
     assert_eq!(support(language("remote-script")), Unsupported);
     assert_eq!(language("goto"), None);

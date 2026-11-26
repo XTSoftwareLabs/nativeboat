@@ -133,3 +133,24 @@ It takes `/S` to install silently. An update installs into the folder the
 running application is in, after it exits. The installer installs in one
 click: the NSIS settings for the license page, the installation folder page
 and all-users installs are not used.
+
+## Plugin packages
+
+Some applications ship packages that they load by path while they run, such
+as an editor's built-in extensions, so the build cannot find them by
+following imports. Name their folders with globs in the `plugins` setting,
+in the settings file `--config` names or in package.json's `nativeboat` key.
+A `!` before a glob leaves folders out:
+
+```json
+{
+  "plugins": ["extensions/*", "!extensions/*-test"]
+}
+```
+
+The `main` module of each package in those folders, and of packages nested
+in them, is compiled with the application and loads when the application
+requires or imports its path. A package with its own `package.json` and
+lockfile gets its dependencies installed first. A package whose own build
+has not run is compiled from the TypeScript sources its `tsconfig.json`
+names.

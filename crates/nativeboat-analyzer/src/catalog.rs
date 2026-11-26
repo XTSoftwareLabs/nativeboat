@@ -191,7 +191,7 @@ pub fn native_package(package: &str) -> Feature {
         ),
         "@vscode/sqlite3" => (
             Partial,
-            "databases use the runtime's own engine on SQLite files: tables, indexes, queries, inserts, updates, deletes, transactions, pragmas and VACUUM; WITHOUT ROWID tables are kept but not queried; no addon is loaded",
+            "databases use the SQLite that Windows includes (3.38 or later); where it is missing or older, the runtime's own engine runs tables, indexes, queries, inserts, updates, deletes, transactions, pragmas, VACUUM and some ALTER TABLE forms, but not all of SQL; no addon is loaded",
         ),
         "@parcel/watcher" => (
             Partial,
@@ -569,7 +569,7 @@ pub fn node(module: &str) -> Feature {
         }
         "net" => (
             Partial,
-            "TCP sockets and servers are available; named pipes are not",
+            "TCP sockets and servers, and Windows named pipes, are available",
         ),
         "https" => (
             Partial,
@@ -1185,8 +1185,8 @@ pub fn language(id: &str) -> Option<Feature> {
         ),
         "top-level-await" => (
             "Top-level await",
-            Unsupported,
-            "modules are evaluated synchronously",
+            Partial,
+            "a module that awaits runs as an async function: dynamic import() waits for it, but a module that imports it statically runs on without waiting",
         ),
         "dynamic-require" => (
             "Dynamic require",
