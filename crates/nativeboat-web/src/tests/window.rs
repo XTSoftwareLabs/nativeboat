@@ -601,3 +601,20 @@ fn media_elements_load_their_metadata_and_first_frame() {
         ]
     );
 }
+
+#[test]
+fn performance_observers_get_marks_and_measures_in_a_later_task() {
+    let mut page = fixture("<p>x</p>");
+    page.check(r#"
+      eq(PerformanceObserver.supportedEntryTypes.join(),'mark,measure','supported types');
+      throws(()=>new PerformanceObserver(1),'TypeError','callback required');
+      const seen=[];const observer=new PerformanceObserver((list,self)=>{seen.push(list.getEntries().map((entry)=>entry.entryType+':'+entry.name).join(),self===observer);});
+      throws(()=>observer.observe({}),'TypeError','types required');
+      observer.observe({entryTypes:['mark','measure','longtask']});
+      performance.mark('a');performance.measure('m','a');eq(seen.length,0,'delivered in a later task');
+      const other=new PerformanceObserver(()=>{});other.observe({type:'mark',buffered:true});eq(other.takeRecords().map((entry)=>entry.name).join(),'a','buffered marks');
+      globalThis.performanceSeen=seen;
+    "#);
+    page.settle();
+    page.check("eq(performanceSeen.join('|'),'mark:a,measure:m|true','observed entries');");
+}

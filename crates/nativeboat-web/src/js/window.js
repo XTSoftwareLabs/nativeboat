@@ -395,6 +395,7 @@ const performance = {
   mark(name, options = {}) {
     const entry = { name, entryType: 'mark', startTime: options.startTime ?? performance.now(), duration: 0, detail: options.detail ?? null };
     marks.push(entry);
+    observeEntry(entry);
     return entry;
   },
   measure(name, start, end) {
@@ -402,6 +403,7 @@ const performance = {
     const startTime = start === undefined ? 0 : time(start);
     const entry = { name, entryType: 'measure', startTime, duration: (end === undefined ? performance.now() : time(end)) - startTime, detail: null };
     marks.push(entry);
+    observeEntry(entry);
     return entry;
   },
   getEntries: () => marks.slice(),
@@ -416,6 +418,87 @@ const performance = {
     marks.splice(0, marks.length, ...kept);
   },
   toJSON: () => ({ timeOrigin }),
+};
+
+// Performance observers get the marks and measures the page makes, in a
+// task after them, as Chromium delivers them. Other entry types, such as
+// long tasks, are never reported here.
+const performanceObservers = new Set();
+const supportedEntryTypes = Object.freeze(['mark', 'measure']);
+class PerformanceObserverEntryList {
+  constructor(entries) {
+    hidden(this, '_entries', entries);
+  }
+
+  getEntries() {
+    return this._entries.slice();
+  }
+
+  getEntriesByType(type) {
+    return this._entries.filter((entry) => entry.entryType === type);
+  }
+
+  getEntriesByName(name, type) {
+    return this._entries.filter((entry) => entry.name === name && (type === undefined || entry.entryType === type));
+  }
+}
+class PerformanceObserver {
+  constructor(callback) {
+    if (typeof callback !== 'function') {
+      throw new TypeError("Failed to construct 'PerformanceObserver': The callback provided as parameter 1 is not a function.");
+    }
+    hidden(this, '_callback', callback);
+    hidden(this, '_types', new Set());
+    hidden(this, '_buffer', []);
+    hidden(this, '_scheduled', false);
+  }
+
+  static get supportedEntryTypes() {
+    return supportedEntryTypes;
+  }
+
+  observe(options = {}) {
+    const types = options.entryTypes !== undefined ? [...options.entryTypes] : options.type !== undefined ? [options.type] : [];
+    if (types.length === 0) {
+      throw new TypeError("Failed to execute 'observe' on 'PerformanceObserver': An observe() call must include either entryTypes or type arguments.");
+    }
+    for (const type of types) this._types.add(String(type));
+    performanceObservers.add(this);
+    if (options.buffered && options.type !== undefined) {
+      for (const entry of marks) if (entry.entryType === options.type) this._queue(entry);
+    }
+  }
+
+  disconnect() {
+    performanceObservers.delete(this);
+    this._types.clear();
+    this._buffer.length = 0;
+  }
+
+  takeRecords() {
+    return this._buffer.splice(0, this._buffer.length);
+  }
+
+  _queue(entry) {
+    this._buffer.push(entry);
+    if (this._scheduled) return;
+    this._scheduled = true;
+    setTimeout(() => {
+      this._scheduled = false;
+      const entries = this.takeRecords();
+      if (entries.length === 0) return;
+      try {
+        this._callback.call(this, new PerformanceObserverEntryList(entries), this);
+      } catch (error) {
+        host.report(error, false);
+      }
+    }, 0);
+  }
+}
+const observeEntry = (entry) => {
+  for (const observer of performanceObservers) {
+    if (observer._types.has(entry.entryType)) observer._queue(entry);
+  }
 };
 
 // Storage. ---------------------------------------------------------------------
@@ -1643,6 +1726,8 @@ const globals = {
   navigator,
   screen,
   performance,
+  PerformanceObserver,
+  PerformanceObserverEntryList,
   localStorage,
   sessionStorage,
   crypto,
