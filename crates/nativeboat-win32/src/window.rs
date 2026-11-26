@@ -599,6 +599,68 @@ pub fn complete_composition(window: WindowId) -> Option<String> {
     ime::resolve(window)
 }
 
+/// Creates a hidden window inside another window's client area, as the
+/// document of a frame shows in a page: it paints, scrolls and takes input
+/// as the windows of [`create_window`] do, and [`place_child`] places it.
+pub fn create_child(parent: WindowId) -> Result<WindowId, Error> {
+    init()?;
+    let parent_hwnd = hwnd(parent).ok_or_else(|| Error {
+        message: "the parent window is gone".to_owned(),
+    })?;
+    // SAFETY: the class is registered and the parent is a live window of
+    // this thread.
+    let child = unsafe {
+        CreateWindowExW(
+            0,
+            WINDOW_CLASS,
+            null(),
+            WS_CHILD | WS_CLIPCHILDREN | WS_CLIPSIBLINGS,
+            0,
+            0,
+            0,
+            0,
+            parent_hwnd,
+            null_mut(),
+            instance(),
+            null(),
+        )
+    };
+    if child.is_null() {
+        return Err(Error::last("CreateWindowExW"));
+    }
+    let window = register(child, None, None);
+    set_zoom(window, zoom(parent));
+    Ok(window)
+}
+
+/// Places a window of [`create_child`] at a rectangle of its parent's
+/// client area, in CSS pixels, above its siblings; `None` hides it.
+pub fn place_child(window: WindowId, rect: Option<(f32, f32, f32, f32)>) {
+    let Some(hwnd) = hwnd(window) else {
+        return;
+    };
+    let scale = scale(window);
+    // SAFETY: the handle is live; showing and placing keeps the focus.
+    unsafe {
+        match rect {
+            Some((x, y, width, height)) => {
+                SetWindowPos(
+                    hwnd,
+                    HWND_TOP,
+                    px(x, scale),
+                    px(y, scale),
+                    px(width, scale).max(0),
+                    px(height, scale).max(0),
+                    SWP_NOACTIVATE | SWP_SHOWWINDOW,
+                );
+            }
+            None => {
+                ShowWindow(hwnd, SW_HIDE);
+            }
+        }
+    }
+}
+
 /// Moves a window to the top of the stacking order without activating,
 /// showing, moving or resizing it.
 pub fn move_top(window: WindowId) {

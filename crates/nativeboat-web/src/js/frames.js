@@ -114,7 +114,7 @@ const startFrame = (element) => {
   receiveWindowMessages(port, remote.proxy, () => fire(element, Event, 'load'));
   const width = parseFloat(element.getAttribute('width')) || element.clientWidth || 300;
   const height = parseFloat(element.getAttribute('height')) || element.clientHeight || 150;
-  state.id = host.startFrame(far, url, width, height);
+  state.id = host.startFrame(far, url, width, height, idOf(element));
   // A frame with no compiled document stays empty, and loads as one does.
   if (!state.id) setTimeout(() => frameStates.get(element) === state && fire(element, Event, 'load'), 0);
 };

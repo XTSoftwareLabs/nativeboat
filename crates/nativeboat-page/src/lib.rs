@@ -37,7 +37,7 @@ use nativeboat_native::web::{MediaSource, Page, Rect, ScrollAlign};
 mod assets;
 mod window;
 
-pub use window::{PageWindow, PageWindows, electron_before_input};
+pub use window::{PageWindow, PageWindows, attach_frame, detach_frame, electron_before_input};
 
 /// The document's selection and focused element, which the scene paints,
 /// and how many times the word at the caret was spell checked after typing
@@ -932,6 +932,21 @@ impl DocumentPage {
             .boxes
             .get(&node)?
             .used_box(&dom, node, style)
+    }
+
+    /// The content box of a rendered `<iframe>` in window coordinates,
+    /// where its frame shows: x, y, width and height.
+    pub fn frame_rect(&self, node: NodeId) -> Option<(f32, f32, f32, f32)> {
+        let rendered = self.rendered()?;
+        let border = rendered.scene.client_rect(node)?;
+        let geometry = rendered.layout.boxes.get(&node)?;
+        let content = geometry.content_box();
+        Some((
+            border.x + content.x - geometry.rect.x,
+            border.y + content.y - geometry.rect.y,
+            content.width,
+            content.height,
+        ))
     }
 
     fn rendered(&self) -> Option<Rc<Rendered>> {

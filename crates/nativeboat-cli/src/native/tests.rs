@@ -8412,8 +8412,9 @@ fibWorker.onmessage = (event) => { window.native.log(`function ${event.data.valu
 }
 
 /// A page's `<iframe>` shows a compiled document in a realm of its own:
-/// the frame's inline script runs, the element gets `load`, and the two
-/// windows exchange messages with their sources and transferred ports.
+/// the frame's inline script runs, the element gets `load`, the two
+/// windows exchange messages with their sources and transferred ports, and
+/// the frame's window takes the element's content box when it changes.
 #[test]
 #[ignore = "requires NATIVEBOAT_RENDERER_TOOLCHAIN with packaged renderer libraries"]
 fn page_frames_run_their_documents_and_exchange_messages() {
@@ -8431,7 +8432,7 @@ const window = new BrowserWindow({ show: false, webPreferences: { preload: './pr
 const lines: string[] = [];
 ipcMain.on('log', (_event, text) => {
   lines.push(text);
-  if (lines.length === 4) { console.log(lines.sort().join('\n')); app.quit(); }
+  if (lines.length === 5) { console.log(lines.sort().join('\n')); app.quit(); }
 });
 window.loadFile('index.html');
 setTimeout(() => { console.log('timeout', lines.join('|')); app.quit(); }, 10000);"#,
@@ -8455,12 +8456,22 @@ window.addEventListener('message', (event) => {
 frame.addEventListener('load', () => {
   window.native.log(`frame load ${frame.contentWindow !== null}`);
   frame.contentWindow.postMessage('hello frame', '*');
+  frame.style.width = '260px';
+  frame.style.height = '120px';
+  frame.contentWindow.postMessage('measure', '*');
 });"#,
         ),
         (
             "frame.html",
             "<!doctype html><html><body><script>\n\
              window.addEventListener('message', (event) => {\n\
+               if (event.data === 'measure') {\n\
+                 const started = Date.now();\n\
+                 const poll = () => (innerWidth === 260 && innerHeight === 120) || Date.now() - started > 3000\n\
+                   ? parent.postMessage(`size ${innerWidth}x${innerHeight}`, '*') : setTimeout(poll, 20);\n\
+                 poll();\n\
+                 return;\n\
+               }\n\
                parent.postMessage(`frame got ${event.data} ${event.source === parent}`, '*');\n\
                const channel = new MessageChannel();\n\
                channel.port1.onmessage = (message) => parent.postMessage(`port ${message.data}`, '*');\n\
@@ -8490,6 +8501,7 @@ frame.addEventListener('load', () => {
         "frame load true\n\
          page got frame got hello frame true from frame true 0\n\
          page got port over port from frame true 0\n\
+         page got size 260x120 from frame true 0\n\
          page got with port from frame true 1\n"
     );
 }
