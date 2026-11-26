@@ -76,6 +76,8 @@ mod event_loop;
 mod event_target_builtin;
 mod float;
 pub mod fork;
+#[cfg(feature = "dom")]
+pub mod frame;
 mod fs_binding;
 mod fs_event_binding;
 /// Native Windows filesystem operations; Node's source binding follows.
@@ -147,8 +149,6 @@ pub mod woff;
 mod work_queue;
 #[cfg(feature = "dom")]
 pub mod worker;
-#[cfg(feature = "dom")]
-pub mod frame;
 mod zlib_builtin;
 
 pub use encoding::base64_encode;
