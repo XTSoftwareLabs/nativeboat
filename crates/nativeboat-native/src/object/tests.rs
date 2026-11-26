@@ -517,6 +517,7 @@ fn functions_expose_their_code() {
         Kind::Function {
             code: Rc::new(|_, _, _| Ok(Value::Number(7.0))),
             constructor: true,
+            realm: 0,
         },
     );
     let (code, constructor) = function.code().unwrap();
@@ -537,6 +538,7 @@ fn object_state_formats_for_diagnostics() {
         Kind::Function {
             code: Rc::new(|_, _, _| Ok(Value::Undefined)),
             constructor: false,
+            realm: 0,
         },
         Kind::Error,
     ];
