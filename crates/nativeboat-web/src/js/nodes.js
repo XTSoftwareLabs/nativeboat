@@ -1024,6 +1024,9 @@ class Document extends Node {
       if (child.nodeType === 10) continue;
       this.appendChild(this.adoptNode(child));
     }
+    // Its images, style sheet links and handler attributes load as the
+    // parser's would.
+    parsedMarkup(markup, this);
     readyState = 'interactive';
     fire(document, Event, 'DOMContentLoaded', { bubbles: true });
     readyState = 'complete';
