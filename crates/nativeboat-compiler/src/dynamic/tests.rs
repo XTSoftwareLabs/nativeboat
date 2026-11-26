@@ -6280,6 +6280,30 @@ fn scripts_named_by_paths_are_lazy_entries_of_graphs_with_workers() {
     );
 }
 
+/// A graph that registers service workers looks up their scripts as it
+/// does workers', by the paths before a query, also in template literals.
+#[test]
+fn service_worker_scripts_are_lazy_entries_named_without_their_query() {
+    let files = [
+        (
+            "main.js",
+            "export const start = (version) => navigator.serviceWorker.register(encodeURI(`pre/sw.js?v=${version}`), { type: 'module' });              export const other = () => navigator.serviceWorker.register('pre/other.js?x=1#top');              export const skipped = (name) => `${name}.js`;",
+        ),
+        ("pre/sw.js", "self.addEventListener('fetch', () => {});"),
+        ("pre/other.js", "export const other = 1;"),
+    ];
+    let options = CompileOptions {
+        package_scripts: true,
+        ..CompileOptions::default()
+    };
+    let mut requested = Vec::new();
+    let module = mixed_with("main.js", &files, &options, &mut requested).unwrap();
+    assert_eq!(
+        module.scripts(),
+        [("pre/sw.js".to_owned(), 1), ("pre/other.js".to_owned(), 2)]
+    );
+}
+
 /// Closures capture values, not the types their annotations name: a
 /// parameter default's arrow typed with the function's type parameter, as
 /// VS Code's notebook `diff` has, captures nothing.

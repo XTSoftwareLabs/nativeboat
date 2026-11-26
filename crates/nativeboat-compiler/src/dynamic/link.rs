@@ -1609,11 +1609,32 @@ impl DynamicImports {
 
 impl DynamicImports {
     /// Notes the arguments of a call or constructor that are paths of
-    /// scripts.
+    /// scripts: string literals, and template literals whose text before
+    /// their first substitution is a path and its query, as in
+    /// `` `sw.js?v=${version}` ``. A query or fragment is not part of the
+    /// path.
     fn note_worker_paths(&mut self, arguments: &[Argument<'_>]) {
         for argument in arguments {
-            if let Argument::StringLiteral(value) = argument
-                && let Some(path) = worker_path(&value.value)
+            let text = match argument {
+                Argument::StringLiteral(value) => value.value.as_str(),
+                Argument::TemplateLiteral(template) => {
+                    let Some(head) = template
+                        .quasis
+                        .first()
+                        .and_then(|quasi| quasi.value.cooked.as_ref())
+                    else {
+                        continue;
+                    };
+                    if template.expressions.is_empty() || head.contains(['?', '#']) {
+                        head.as_str()
+                    } else {
+                        continue;
+                    }
+                }
+                _ => continue,
+            };
+            let text = text.split(['?', '#']).next().unwrap_or_default();
+            if let Some(path) = worker_path(text)
                 && !self.worker_paths.contains(&path)
             {
                 self.worker_paths.push(path);
@@ -1650,6 +1671,14 @@ impl<'a> Visit<'a> for DynamicImports {
     }
 
     fn visit_call_expression(&mut self, call: &CallExpression<'a>) {
+        // `navigator.serviceWorker.register(url)` starts a worker too.
+        if let Expression::StaticMemberExpression(member) = &call.callee
+            && member.property.name == "register"
+            && let Expression::StaticMemberExpression(container) = &member.object
+            && container.property.name == "serviceWorker"
+        {
+            self.constructs_workers = true;
+        }
         self.note_worker_paths(&call.arguments);
         for pair in call.arguments.windows(2) {
             if let [
