@@ -229,7 +229,7 @@ fn unknown_at_rules_are_kept() {
 #[test]
 fn container_rules_keep_their_query_and_rules() {
     let (sheet, _) = parse_stylesheet(
-        "@container sidebar (min-width: 4px) { a { color: red } }\n@container (width >) { b {} }\n.card { @container (width < 9px) { color: blue } }",
+        "@container sidebar (min-width: 4px) { a { color: red } }\n@container a b (width > 1px) { b {} }\n.card { @container (width < 9px) { color: blue } }",
     );
     let containers: Vec<_> = sheet
         .rules
