@@ -1882,13 +1882,14 @@ class HTMLIFrameElement extends HTMLElement {
     return constructHTMLElement(new.target);
   }
 
-  // The frame's window, as a cross-origin page sees it (see frames.js).
+  // The frame's window, itself for a document of this page's origin, else
+  // as a cross-origin page sees it (see frames.js).
   get contentWindow() {
-    return this.isConnected ? frameContentWindow(this) : null;
+    return frameContentWindow(this);
   }
 
   get contentDocument() {
-    return null;
+    return frameContentDocument(this);
   }
 
   get sandbox() {

@@ -63,15 +63,18 @@ const receiveWindowMessages = (port, source, loaded) => {
   };
 };
 
-// In a frame's realm: the page's window is the frame's `parent` and `top`.
+// In a frame's realm: the page's window is the frame's `parent` and `top`,
+// itself for a page of the frame's origin.
 {
-  const handle = globalThis.__nativeboat_frame;
-  if (handle) {
+  const frame = globalThis.__nativeboat_frame;
+  if (frame) {
     delete globalThis.__nativeboat_frame;
+    const [handle, parentWindow] = frame;
     const port = nativePort(handle);
     const { proxy } = remoteWindow(port);
-    hidden(global, 'parent', proxy);
-    hidden(global, 'top', proxy);
+    const parent = parentWindow || proxy;
+    hidden(global, 'parent', parent);
+    hidden(global, 'top', parentWindow ? parentWindow.top : proxy);
     hidden(global, 'frameElement', null);
     receiveWindowMessages(port, proxy, null);
     global.addEventListener('load', () => port.postMessage({ kind: 'load' }), { once: true });
@@ -109,18 +112,36 @@ const startFrame = (element) => {
   const [near, far] = host.messageChannel();
   const port = nativePort(near);
   const remote = remoteWindow(port);
-  const state = { port, window: remote, url, id: 0 };
+  const state = { port, window: remote, url, id: 0, direct: null };
   frameStates.set(element, state);
   receiveWindowMessages(port, remote.proxy, () => fire(element, Event, 'load'));
   const width = parseFloat(element.getAttribute('width')) || element.clientWidth || 300;
   const height = parseFloat(element.getAttribute('height')) || element.clientHeight || 150;
-  state.id = host.startFrame(far, url, width, height, idOf(element));
+  // A document of this page's origin is reached directly.
+  let sameOrigin = false;
+  try {
+    sameOrigin = location.origin !== 'null' && new URL(url).origin === location.origin;
+  } catch {}
+  const [id, frameWindow] = host.startFrame(far, url, width, height, idOf(element), sameOrigin);
+  state.id = id;
+  if (sameOrigin && frameWindow) state.direct = frameWindow;
   // A frame with no compiled document stays empty, and loads as one does.
   if (!state.id) setTimeout(() => frameStates.get(element) === state && fire(element, Event, 'load'), 0);
 };
+// An element in the document has its frame at once, as browsers give it
+// one when it is inserted.
+const frameOf = (element) => {
+  if (!element.isConnected) return null;
+  if (!frameStates.has(element)) startFrame(element);
+  return frameStates.get(element) || null;
+};
 const frameContentWindow = (element) => {
-  const state = frameStates.get(element);
-  return state ? state.window.proxy : null;
+  const state = frameOf(element);
+  return state ? state.direct || state.window.proxy : null;
+};
+const frameContentDocument = (element) => {
+  const state = frameOf(element);
+  return state && state.direct ? state.direct.document : null;
 };
 const syncFrames = () => {
   for (const element of [...frameStates.keys()]) {

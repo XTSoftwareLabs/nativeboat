@@ -8506,6 +8506,84 @@ frame.addEventListener('load', () => {
     );
 }
 
+/// A frame of its page's origin is reached directly: the page writes the
+/// frame's document with `open`, `write` and `close` once its first
+/// document loaded, and the frame's `parent` is the page's window. The
+/// documents are the `documents` setting's, served by a protocol.
+#[test]
+#[ignore = "requires NATIVEBOAT_RENDERER_TOOLCHAIN with packaged renderer libraries"]
+fn page_frames_of_the_same_origin_share_their_windows() {
+    let sysroot = PathBuf::from(std::env::var_os("NATIVEBOAT_RENDERER_TOOLCHAIN").unwrap());
+    assert!(sysroot.join("renderer-libs").is_dir());
+    let fixture = Fixture::new(&[
+        (
+            "package.json",
+            r#"{"name":"native-same-origin","type":"module","main":"main.ts","devDependencies":{"electron":"44"},"nativeboat":{"documents":["*.html"]}}"#,
+        ),
+        (
+            "main.ts",
+            r#"import { app, BrowserWindow, ipcMain, protocol } from 'electron';
+protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true } }]);
+const lines: string[] = [];
+ipcMain.on('log', (_event, text) => {
+  lines.push(text);
+  if (lines.length === 2) { console.log(lines.join('\n')); app.quit(); }
+});
+app.whenReady().then(() => {
+  protocol.handle('app', () => new Response(''));
+  const window = new BrowserWindow({ show: false, webPreferences: { preload: './preload.js' } });
+  window.loadURL('app://local/index.html');
+});
+setTimeout(() => { console.log('timeout', lines.join('|')); app.quit(); }, 10000);"#,
+        ),
+        (
+            "preload.js",
+            "const { ipcRenderer, contextBridge } = require('electron');\n\
+             contextBridge.exposeInMainWorld('native', { log: (text) => ipcRenderer.send('log', text) });",
+        ),
+        (
+            "index.html",
+            "<!doctype html><html><body><iframe id='f' src='same.html'></iframe><script type='module' src='./renderer.js'></script></body></html>",
+        ),
+        (
+            "same.html",
+            "<!doctype html><html><body><p>first</p></body></html>",
+        ),
+        (
+            "renderer.js",
+            r#"const frame = document.getElementById('f');
+const doc = frame.contentDocument;
+window.native.log(`direct ${frame.contentWindow.location.pathname} ${doc !== null} ${frame.contentWindow.parent === window}`);
+frame.contentWindow.addEventListener('DOMContentLoaded', () => {
+  doc.open();
+  doc.write('<p id="x">written</p>');
+  doc.close();
+  window.native.log(`written ${doc.getElementById('x').textContent} ${doc.body.children.length}`);
+}, { once: true });"#,
+        ),
+    ]);
+    let mut session = shimforge::Session::new();
+    let select = shimforge::mock!(
+        session,
+        select_toolchain,
+        fn(Option<&Path>, &Path) -> Toolchain
+    );
+    select.expect().returning(move |_, _| Toolchain {
+        rustc: sysroot.join("bin/rustc.exe"),
+        sysroot: Some(sysroot.clone()),
+    });
+    let (code, out, err) = run(&fixture, &["--out", "native-output"]);
+    assert_eq!(code, 0, "{out}{err}");
+    let executed = Command::new(fixture.path("native-output/native-same-origin.exe"))
+        .output()
+        .unwrap();
+    assert!(executed.status.success(), "{executed:?}");
+    assert_eq!(
+        String::from_utf8_lossy(&executed.stdout),
+        "direct /same.html true true\nwritten written 1\n"
+    );
+}
+
 /// A compiled page defines custom elements: `document.createElement` and
 /// `new` construct them, a definition upgrades the elements the page already
 /// has, its callbacks follow insertions, moves, removals and observed
