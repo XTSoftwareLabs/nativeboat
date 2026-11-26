@@ -1713,8 +1713,10 @@ impl Emitter<'_> {
         else {
             return function;
         };
+        // The function is made before the call borrows the realm: making
+        // one that captures variables takes the realm mutably.
         format!(
-            "::nativeboat_native::with_source_text(realm, {function}, {})",
+            "{{ let source_function = {function}; ::nativeboat_native::with_source_text(realm, source_function, {}) }}",
             rust_str(&text)
         )
     }
