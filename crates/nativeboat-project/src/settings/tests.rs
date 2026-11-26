@@ -69,3 +69,14 @@ fn settings_files_name_plugin_folders() {
     let error = Settings::read(&file("bad-plugins", "{\"plugins\": \"extensions\"}")).unwrap_err();
     assert!(error.contains("must be a list of folder globs"), "{error}");
 }
+
+#[test]
+fn settings_files_name_forked_modules() {
+    let path = file("forks", "{\"forks\": [\"server/out/main\"]}");
+    assert_eq!(
+        Settings::read(&path).unwrap().forks,
+        Some(vec!["server/out/main".to_owned()])
+    );
+    let error = Settings::read(&file("bad-forks", "{\"forks\": {}}")).unwrap_err();
+    assert!(error.contains("must be a list of module paths"), "{error}");
+}

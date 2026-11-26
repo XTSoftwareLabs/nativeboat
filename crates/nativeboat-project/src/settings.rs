@@ -18,6 +18,9 @@ pub struct Settings {
     /// File globs of the HTML documents the program shows in frames
     /// without naming them in its pages (see [`crate::documents`]).
     pub documents: Option<Vec<String>>,
+    /// Paths of the modules the program starts with `fork()` by paths it
+    /// builds while it runs (see [`crate::plugins::module_entry`]).
+    pub forks: Option<Vec<String>>,
     /// The settings the file gives that this NativeBoat does not know.
     pub unknown: Vec<String>,
 }
@@ -58,6 +61,14 @@ impl Settings {
                             path.display()
                         )
                     })?),
+                "forks" => {
+                    settings.forks = Some(crate::plugins::patterns(&value).ok_or_else(|| {
+                        format!(
+                            "\"forks\" in the settings file {} must be a list of module paths",
+                            path.display()
+                        )
+                    })?)
+                }
                 // Editors use it to find a schema for the file.
                 "$schema" => {}
                 _ => settings.unknown.push(key),

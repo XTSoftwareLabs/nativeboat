@@ -760,6 +760,21 @@ fn load_package(
             add_entry(&mut forks, found);
         }
     }
+    // Modules forked by paths the program builds while it runs, such as a
+    // plugin's language server, are named in the `forks` setting.
+    let fork_paths = settings.forks.clone().or_else(|| {
+        package["nativeboat"]
+            .get("forks")
+            .and_then(plugins::patterns)
+    });
+    for path in fork_paths.iter().flatten() {
+        match plugins::module_entry(root, path) {
+            Some(entry) => add_entry(&mut forks, (entry.source, entry.runtime_paths)),
+            None => warnings.push(format!(
+                "the forked module \"{path}\" has no file and no TypeScript source its tsconfig.json emits it from"
+            )),
+        }
+    }
     // Documents the pages show in frames are compiled as pages are.
     let document_patterns = settings.documents.clone().or_else(|| {
         package["nativeboat"]
