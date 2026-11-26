@@ -1120,8 +1120,8 @@ pub fn css_at_rule(name: &str) -> Option<Feature> {
         "container" => (
             "container",
             "Container queries",
-            Unsupported,
-            "not supported",
+            Partial,
+            "size queries (width, height, inline-size, block-size, aspect-ratio, orientation) apply to elements; style() queries never match, pseudo-elements take no @container rules, and container-type does not contain the container's size",
         ),
         "layer" => ("layer", "Cascade layers", Supported, ""),
         "property" => ("property", "@property", Supported, ""),

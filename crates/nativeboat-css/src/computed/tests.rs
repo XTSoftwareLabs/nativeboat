@@ -109,6 +109,7 @@ const SAMPLES: &[(&str, &str)] = &[
     ("letter-spacing", "1px"),
     ("tab-size", "4"),
     ("container-type", "inline-size"),
+    ("container-name", "sidebar main"),
     ("text-indent", "2px"),
     ("vertical-align", "middle"),
     ("list-style-type", "square"),

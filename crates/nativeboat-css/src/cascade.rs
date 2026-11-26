@@ -3,6 +3,7 @@
 use crate::prelude::*;
 
 use crate::computed::{ComputedStyle, PropertyId, Specified, SpecifiedValues, StyleEnvironment};
+use crate::container::{ContainerQuery, QueryContainer};
 use crate::media::MediaEnvironment;
 use crate::parser::{Declaration, Rule, StyleRule, Stylesheet};
 use crate::selector::{Element, PseudoElement, Relations, Selector, SimpleSelector, Specificity};
@@ -70,6 +71,9 @@ struct IndexedRule<'a> {
     /// The position of its first declaration among the declarations of all
     /// such rules, in cascade order.
     first: usize,
+    /// The queries of the `@container` rules it is in, which an element's
+    /// query containers must all satisfy.
+    containers: Vec<&'a ContainerQuery>,
 }
 
 /// Selectors by what the compound of their subject requires: an id, a
@@ -163,6 +167,10 @@ pub struct RuleMap<'a> {
     /// apart, so that the others can be matched once per selector context.
     relational_elements: Buckets<'a>,
     relational_pseudo_elements: Buckets<'a>,
+    /// Selectors of rules in `@container` rules, which depend on the sizes
+    /// of elements' query containers.
+    conditional_elements: Buckets<'a>,
+    conditional_pseudo_elements: Buckets<'a>,
     /// Declarations by position, as far as they were parsed.
     parsed: RefCell<Vec<Option<Parsed>>>,
     /// What the selectors test of elements' siblings and ancestors.
@@ -237,6 +245,8 @@ impl<'a> RuleMap<'a> {
             pseudo_elements: Buckets::default(),
             relational_elements: Buckets::default(),
             relational_pseudo_elements: Buckets::default(),
+            conditional_elements: Buckets::default(),
+            conditional_pseudo_elements: Buckets::default(),
             parsed: RefCell::default(),
             relations: Relations::default(),
             registered: BTreeMap::new(),
@@ -249,7 +259,7 @@ impl<'a> RuleMap<'a> {
         for sheet in sheets {
             map.add(
                 &sheet.sheet.rules,
-                (sheet.origin, sheet.sheet.scope),
+                (sheet.origin, sheet.sheet.scope, &[]),
                 media,
                 &mut declarations,
                 (&mut layers, ""),
@@ -273,7 +283,7 @@ impl<'a> RuleMap<'a> {
     fn add(
         &mut self,
         rules: &'a [Rule],
-        (origin, scope): (Origin, u32),
+        (origin, scope, containers): (Origin, u32, &[&'a ContainerQuery]),
         media: &MediaEnvironment,
         declarations: &mut usize,
         (layers, layer): (&mut Layers, &str),
@@ -289,6 +299,7 @@ impl<'a> RuleMap<'a> {
                         scope,
                         layer: 0,
                         first: *declarations,
+                        containers: containers.to_vec(),
                     });
                     keys.push(layers.key(layer));
                     *declarations += style.declarations.len();
@@ -300,19 +311,23 @@ impl<'a> RuleMap<'a> {
                             self.slotted.push(position);
                             continue;
                         }
-                        let buckets =
-                            match (selector.pseudo_element.is_some(), selector.is_relational()) {
-                                (true, false) => &mut self.pseudo_elements,
-                                (false, false) => &mut self.elements,
-                                (true, true) => &mut self.relational_pseudo_elements,
-                                (false, true) => &mut self.relational_elements,
-                            };
+                        let pseudo = selector.pseudo_element.is_some();
+                        let buckets = match (pseudo, selector.is_relational()) {
+                            _ if !containers.is_empty() && pseudo => {
+                                &mut self.conditional_pseudo_elements
+                            }
+                            _ if !containers.is_empty() => &mut self.conditional_elements,
+                            (true, false) => &mut self.pseudo_elements,
+                            (false, false) => &mut self.elements,
+                            (true, true) => &mut self.relational_pseudo_elements,
+                            (false, true) => &mut self.relational_elements,
+                        };
                         buckets.insert(selector, position);
                     }
                 }
                 Rule::Media { query, rules } if query.matches(media) => self.add(
                     rules,
-                    (origin, scope),
+                    (origin, scope, containers),
                     media,
                     declarations,
                     (layers, layer),
@@ -320,17 +335,29 @@ impl<'a> RuleMap<'a> {
                 ),
                 Rule::Supports { condition, rules } if supports(condition) => self.add(
                     rules,
-                    (origin, scope),
+                    (origin, scope, containers),
                     media,
                     declarations,
                     (layers, layer),
                     keys,
                 ),
+                Rule::Container { query, rules } => {
+                    let mut inner = containers.to_vec();
+                    inner.push(query);
+                    self.add(
+                        rules,
+                        (origin, scope, &inner),
+                        media,
+                        declarations,
+                        (layers, layer),
+                        keys,
+                    );
+                }
                 Rule::Layer { name, rules } => {
                     let inner = layers.declare(layer, name);
                     self.add(
                         rules,
-                        (origin, scope),
+                        (origin, scope, containers),
                         media,
                         declarations,
                         (layers, &inner),
@@ -359,6 +386,37 @@ impl<'a> RuleMap<'a> {
     /// Whether a rule's selector looks at descendants with `:has()`.
     pub fn is_relational(&self) -> bool {
         self.relational_elements.is_some() || self.relational_pseudo_elements.is_some()
+    }
+
+    /// Whether any rule is in an `@container` rule.
+    pub fn has_container_queries(&self) -> bool {
+        self.conditional_elements.is_some() || self.conditional_pseudo_elements.is_some()
+    }
+
+    /// The rules in `@container` rules that match, as
+    /// [`RuleMap::matching`]: `container` gives the size of the element's
+    /// nearest query container with a name, or with any name for `None`,
+    /// if it has one.
+    pub fn matching_conditional<E: Element>(
+        &self,
+        element: &E,
+        pseudo: Option<(&PseudoElement, u32)>,
+        container: &dyn Fn(Option<&str>) -> Option<QueryContainer>,
+    ) -> Vec<(usize, Specificity)> {
+        let buckets = match pseudo {
+            Some(_) => &self.conditional_pseudo_elements,
+            None => &self.conditional_elements,
+        };
+        if !buckets.is_some() {
+            return Vec::new();
+        }
+        let mut matched = self.matching_in(buckets, element, pseudo);
+        matched.retain(|(rule, _)| {
+            self.rules[*rule].containers.iter().all(|query| {
+                container(query.name.as_deref()).is_some_and(|size| query.matches(&size))
+            })
+        });
+        matched
     }
 
     /// What the rules' selectors test of elements' siblings and ancestors.

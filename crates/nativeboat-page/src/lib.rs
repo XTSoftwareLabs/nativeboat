@@ -121,8 +121,12 @@ struct ParsedSheets {
     container_units: bool,
 }
 
-/// Whether CSS text uses container query units.
+/// Whether CSS text uses container queries or their units, which depend
+/// on the sizes elements are laid out at.
 fn uses_container_units(source: &str) -> bool {
+    if source.contains("@container") {
+        return true;
+    }
     let bytes = source.as_bytes();
     source.match_indices("cq").any(|(at, _)| {
         let digit_before = at > 0 && (bytes[at - 1].is_ascii_digit() || bytes[at - 1] == b'.');
@@ -622,7 +626,8 @@ impl DocumentPage {
                     nativeboat_css::Rule::FontFace(declarations) => found.push(declarations),
                     nativeboat_css::Rule::Media { rules, .. }
                     | nativeboat_css::Rule::Supports { rules, .. }
-                    | nativeboat_css::Rule::Layer { rules, .. } => faces(rules, found),
+                    | nativeboat_css::Rule::Layer { rules, .. }
+                    | nativeboat_css::Rule::Container { rules, .. } => faces(rules, found),
                     _ => {}
                 }
             }

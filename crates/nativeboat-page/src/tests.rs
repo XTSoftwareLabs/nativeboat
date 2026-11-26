@@ -764,6 +764,32 @@ fn container_query_units_follow_their_containers_laid_out_size() {
 }
 
 #[test]
+fn container_rules_apply_by_their_query_containers_size() {
+    let (page, dom) = page(
+        "<style>body { margin: 0 } .card { container: card / inline-size } #wide { width: 300px } #narrow { width: 100px }\
+         .item { width: 10px; height: 10px }\
+         @container card (max-width: 200px) { .item { width: 20px } }\
+         @container (min-width: 250px) { .item { height: 30px } }\
+         @container other (min-width: 1px) { .item { width: 40px } }\
+         @container (height > 0px) { .item { height: 50px } }</style>\
+         <div class='card' id='wide'><div class='item' id='a'></div></div>\
+         <div class='card' id='narrow'><div class='item' id='b'></div></div>\
+         <div class='item' id='c'></div>",
+    );
+    let id = |name| dom.borrow().get_element_by_id(Dom::DOCUMENT, name).unwrap();
+    let size = |name| {
+        let rect = page.rect(id(name)).unwrap();
+        (rect.width, rect.height)
+    };
+    // Named queries choose containers with that name; an element outside
+    // any container, and a height query of an inline-size container, match
+    // nothing.
+    assert_eq!(size("a"), (10.0, 30.0));
+    assert_eq!(size("b"), (20.0, 10.0));
+    assert_eq!(size("c"), (10.0, 10.0));
+}
+
+#[test]
 fn transitions_present_frame_values_and_report_their_events() {
     let (page, dom) = page("<div id='box'></div>");
     page.extend_stylesheets(vec![

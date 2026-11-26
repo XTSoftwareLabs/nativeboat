@@ -631,7 +631,7 @@ fn css_features() {
         ("keyframes", Supported),
         ("-webkit-keyframes", Supported),
         ("font-face", Partial),
-        ("container", Unsupported),
+        ("container", Partial),
         ("layer", Supported),
         ("property", Supported),
         ("import", Supported),
