@@ -2,7 +2,8 @@ name: VS Code build stage
 
 # One job of the VS Code workflow: restores the generated-crate cache, builds
 # until its time is up, and saves the cache for the next stage. The stage
-# that finishes the build runs VS Code and uploads `vscode-result`.
+# that finishes the build runs VS Code and uploads `vscode-result`, and the
+# built application as `vscode-app` for vscode-rerun.yml.
 on:
   workflow_call:
     inputs:
@@ -82,6 +83,12 @@ jobs:
         with:
           name: vscode-result
           path: ${{ env.ROOT }}\result
+      - uses: actions/upload-artifact@v4
+        if: steps.build.outputs.state == 'built'
+        with:
+          name: vscode-app
+          path: ${{ env.ROOT }}\out
+          retention-days: 7
       - uses: actions/upload-artifact@v4
         if: always()
         with:

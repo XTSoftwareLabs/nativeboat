@@ -1,5 +1,7 @@
 # Launches a built application with an isolated profile, waits, saves a
-# window screenshot and the process output, then ends the process.
+# window screenshot and the process output, then ends the process. Also
+# writes processes.txt: the CPU time of each process the executable runs
+# as and of its busiest threads, with its command line.
 param(
     [Parameter(Mandatory)][string]$Executable,
     [Parameter(Mandatory)][string]$OutputDirectory,
@@ -38,5 +40,13 @@ if ($process.HasExited) {
     $dc = $graphics.GetHdc(); [void][Snapshot]::PrintWindow($handle, $dc, 2); $graphics.ReleaseHdc($dc)
     $bitmap.Save("$OutputDirectory\window.png")
     "window '$($process.MainWindowTitle)' ${width}x${height} working set $([int]($process.WorkingSet64 / 1MB)) MB"
+    $report = foreach ($running in Get-Process | Where-Object { $_.Path -eq $process.Path }) {
+        $command = (Get-CimInstance Win32_Process -Filter "ProcessId=$($running.Id)").CommandLine
+        '{0} cpu {1:n1} s, {2} MB, {3} threads: {4}' -f $running.Id, $running.TotalProcessorTime.TotalSeconds,
+            [int]($running.WorkingSet64 / 1MB), $running.Threads.Count, $command
+        $running.Threads | Sort-Object TotalProcessorTime -Descending | Select-Object -First 5 |
+            ForEach-Object { '  thread {0} cpu {1:n1} s' -f $_.Id, $_.TotalProcessorTime.TotalSeconds }
+    }
+    $report | Set-Content "$OutputDirectory\processes.txt"
     Stop-Process -Id $process.Id -Force
 }
