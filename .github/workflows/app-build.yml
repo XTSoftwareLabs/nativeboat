@@ -1,0 +1,108 @@
+name: App build
+
+# Builds an Electron application from its repository with this checkout's
+# nativeboat release package, runs it briefly, and keeps its window
+# snapshot, output and compatibility report as the `app-result` artifact:
+# a check of an application against unreleased changes.
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: Application repository (owner/name)
+        default: marktext/marktext
+      ref:
+        description: Tag or branch of the application
+        default: v0.20.0
+      project:
+        description: Electron project folder in the repository
+        default: packages/desktop
+      node:
+        description: Node.js version
+        default: '22.21.1'
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  toolchain:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+      - name: Rust version
+        id: rust
+        shell: pwsh
+        run: |
+          $version = (Get-Content scripts/toolchain-version.txt -Raw).Trim()
+          "version=$version" >> $env:GITHUB_OUTPUT
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.rust.outputs.version }}
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Build the release package
+        shell: pwsh
+        run: |
+          # A package of an earlier run may come back with the build cache.
+          Remove-Item target/release-package -Recurse -Force -ErrorAction SilentlyContinue
+          ./scripts/build-release.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nativeboat-app-toolchain
+          path: target/release-package/*/nativeboat-*-windows-x64.zip
+          retention-days: 3
+
+  build:
+    needs: toolchain
+    runs-on: windows-latest
+    timeout-minutes: 240
+    env:
+      ROOT: D:\app
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: nativeboat-app-toolchain
+          path: ${{ env.ROOT }}\package
+      - uses: actions/checkout@v5
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.ref }}
+          path: app
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ inputs.node }}
+      - name: Build
+        shell: pwsh
+        env:
+          PROJECT: ${{ inputs.project }}
+        run: |
+          # The project's own package manager, as its packageManager field names it.
+          corepack enable
+          $zip = Get-ChildItem "$env:ROOT\package" -Recurse -Filter *.zip | Select-Object -First 1
+          Expand-Archive $zip.FullName "$env:ROOT\nativeboat"
+          $project = Join-Path $env:GITHUB_WORKSPACE "app\$env:PROJECT"
+          New-Item -ItemType Directory -Force "$env:ROOT\result" | Out-Null
+          & "$env:ROOT\nativeboat\nativeboat.exe" analyze $project > "$env:ROOT\result\analyze.txt"
+          & "$env:ROOT\nativeboat\nativeboat.exe" build $project --out "$env:ROOT\out" 2>&1 | Tee-Object "$env:ROOT\result\build.log"
+          if ($LASTEXITCODE -ne 0) { throw "nativeboat build failed with $LASTEXITCODE" }
+      - name: Run
+        shell: pwsh
+        run: |
+          $executable = Get-ChildItem "$env:ROOT\out" -Filter *.exe | Select-Object -First 1
+          ./scripts/app-snapshot.ps1 -Executable $executable.FullName -OutputDirectory "$env:ROOT\result" -WaitSeconds 20
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: app-result
+          path: ${{ env.ROOT }}\result
+          if-no-files-found: ignore
