@@ -71,7 +71,8 @@ jobs:
         run: |
           $version = '${{ steps.version.outputs.version }}'
           $package = "target\release-package\$version"
-          $check = 'target\relcheck'
+          # Absolute, as nativeboat build reads a relative --out against the project.
+          $check = Join-Path $PWD 'target\relcheck'
           Expand-Archive "$package\nativeboat-$version-windows-x64.zip" -DestinationPath "$check\nativeboat"
           $nativeboat = "$check\nativeboat\nativeboat.exe"
           $reported = (& $nativeboat --version | Out-String).Trim()

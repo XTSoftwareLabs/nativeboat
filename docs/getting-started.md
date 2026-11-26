@@ -42,7 +42,7 @@ Windows program.
 
 | Option | Meaning |
 | --- | --- |
-| `--out <DIR>` | the output folder |
+| `--out <DIR>` | the output folder; a relative path is read from the project folder |
 | `--sign <COMMAND>` | signs the executable; see [Signing](#signing) |
 | `--installer <DIR>` | where the installer and its update metadata go; see [Installers and updates](#installers-and-updates) |
 | `--config <FILE>` | a settings file for the native build, such as where its updates are published; see [Installers and updates](#installers-and-updates) |
