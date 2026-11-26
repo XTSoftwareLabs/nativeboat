@@ -8637,7 +8637,7 @@ setTimeout(() => { console.log('timeout', lines.join('|')); app.quit(); }, 10000
 const container = navigator.serviceWorker;
 container.addEventListener('message', (event) => log(`message ${event.data} ${event.source === container.controller}`));
 (async () => {
-  const registration = await container.register(`sw.js?v=${1}`);
+  const registration = await navigator.serviceWorker.register(`sw.js?v=${1}`);
   log(`registered ${registration.scope.endsWith('local/')} ${container.controller === null}`);
   if (!container.controller) await new Promise((resolve) => container.addEventListener('controllerchange', resolve, { once: true }));
   const response = await fetch('https://example.test/hello');
