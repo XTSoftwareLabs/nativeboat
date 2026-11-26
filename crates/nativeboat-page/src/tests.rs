@@ -795,7 +795,7 @@ fn container_rules_style_pseudo_elements_of_their_containers() {
         "<style>body { margin: 0 } #box { container-type: inline-size; width: 100px }\
          #box::before { content: ''; display: block; height: 5px }\
          @container (max-width: 150px) { #box::before { height: 25px } }</style>\
-         <div id='box'><span id='after'>x</span></div>",
+         <div id='box'><div id='after'>x</div></div>",
     );
     let id = |name| dom.borrow().get_element_by_id(Dom::DOCUMENT, name).unwrap();
     // The pseudo-element's own element is its query container.
