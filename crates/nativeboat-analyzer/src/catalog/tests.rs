@@ -22,6 +22,8 @@ fn adapted_native_packages_have_their_implemented_support_level() {
         "node-pty",
         "native-is-elevated",
         "@vscode/native-watchdog",
+        "windows-foreground-love",
+        "@vscode/fs-copyfile",
     ] {
         assert_eq!(native_package(package).support, Supported, "{package}");
     }
