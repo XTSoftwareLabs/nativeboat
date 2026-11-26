@@ -123,6 +123,10 @@ pub(crate) fn start(
 pub(crate) fn terminate(page: &mut Realm, id: u32) {
     if let Some(index) = page.workers.iter().position(|worker| worker.id == id) {
         let mut worker = page.workers.remove(index);
+        // A frame's page lets its realm go first.
+        if let Some(frame_end) = page.frame_end {
+            frame_end(&mut *worker.realm);
+        }
         end(&mut worker.realm);
     }
 }

@@ -295,6 +295,9 @@ pub struct Realm {
     /// Makes the page of a frame's realm.
     #[cfg(feature = "dom")]
     pub(crate) frame_page: Option<crate::frame::FramePage>,
+    /// Ends the page of a frame's realm.
+    #[cfg(feature = "dom")]
+    pub(crate) frame_end: Option<crate::frame::FrameEnd>,
     /// `TypeError.prototype`.
     pub type_error_prototype: Object,
     /// `RangeError.prototype`.
@@ -866,6 +869,8 @@ impl Realm {
             frame_documents: &[],
             #[cfg(feature = "dom")]
             frame_page: None,
+            #[cfg(feature = "dom")]
+            frame_end: None,
             type_error_prototype,
             range_error_prototype,
             reference_error_prototype,

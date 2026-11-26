@@ -114,11 +114,11 @@ pub use tray::{
     TrayEvent, add_tray, remove_tray, set_tray_image, set_tray_tooltip, tray_balloon, tray_menu,
 };
 pub use window::{
-    WindowOptions, adopt, apply, client_size, close, complete_composition, create_window, destroy,
-    focus, focus_content, focus_control, follow_focus, hwnd, is_maximized, is_minimized,
-    is_transparent, is_visible, keyboard_input, maximize, minimize, move_top, restore, scale,
-    scrollbar_room, set_client_size, set_cursor, set_size_limits, set_title, set_zoom, show, title,
-    type_into_control, window_ids, zoom,
+    WindowOptions, adopt, apply, client_size, close, complete_composition, create_child,
+    create_window, destroy, focus, focus_content, focus_control, follow_focus, hwnd, is_maximized,
+    is_minimized, is_transparent, is_visible, keyboard_input, maximize, minimize, move_top,
+    place_child, restore, scale, scrollbar_room, set_client_size, set_cursor, set_size_limits,
+    set_title, set_zoom, show, title, type_into_control, window_ids, zoom,
 };
 
 use core::fmt;

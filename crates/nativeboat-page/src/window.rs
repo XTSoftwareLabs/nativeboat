@@ -51,6 +51,113 @@ pub struct PageWindow {
     dump: Option<alloc::string::String>,
     /// The revision and time of the last description written.
     dumped: Cell<Option<((u64, u64), f64)>>,
+    /// The frames the page's `<iframe>` elements show, each in a window of
+    /// its own inside this one.
+    frames: RefCell<Vec<(NodeId, Rc<PageWindow>)>>,
+    /// The window of the page whose frame this is.
+    parent: Option<alloc::rc::Weak<PageWindow>>,
+}
+
+/// Every page's window and frame's window, so that a frame finds the page
+/// it is in and input finds the window it arrived at.
+struct Registry(RefCell<Vec<alloc::rc::Weak<PageWindow>>>);
+
+/// A frame whose page's window does not exist yet, as for the `<iframe>`
+/// elements of a page's HTML, which start while its scripts first run:
+/// the page's realm, the element, the frame's page and its realm.
+type Pending = (*mut Realm, u32, Rc<DocumentPage>, *mut Realm);
+
+struct PendingFrames(RefCell<Vec<Pending>>);
+
+// SAFETY: as for `Registry`.
+unsafe impl Sync for PendingFrames {}
+
+static PENDING: PendingFrames = PendingFrames(RefCell::new(Vec::new()));
+
+// SAFETY: page windows are made and used only on the thread that runs the
+// application's windows, which alone touches the registry.
+unsafe impl Sync for Registry {}
+
+static WINDOWS: Registry = Registry(RefCell::new(Vec::new()));
+
+fn registered(found: impl Fn(&PageWindow) -> bool) -> Option<Rc<PageWindow>> {
+    let windows = WINDOWS.0.borrow();
+    windows
+        .iter()
+        .filter_map(alloc::rc::Weak::upgrade)
+        .find(|window| found(window))
+}
+
+fn register(window: &Rc<PageWindow>) {
+    {
+        let mut windows = WINDOWS.0.borrow_mut();
+        windows.retain(|known| known.strong_count() > 0);
+        windows.push(Rc::downgrade(window));
+    }
+    // Frames that started before this window existed now show in it.
+    let waiting: Vec<Pending> = {
+        let mut pending = PENDING.0.borrow_mut();
+        let (mine, others) = core::mem::take(&mut *pending)
+            .into_iter()
+            .partition(|(parent, ..)| *parent == window.realm);
+        *pending = others;
+        mine
+    };
+    for (_, node, page, realm) in waiting {
+        show_frame(window, node, page, realm);
+    }
+}
+
+fn show_frame(host: &Rc<PageWindow>, node: u32, page: Rc<DocumentPage>, realm: *mut Realm) {
+    let Ok(window) = nativeboat_win32::create_child(host.window) else {
+        return;
+    };
+    page.attach_window(window);
+    let frame = Rc::new(PageWindow::new(
+        page,
+        realm,
+        window,
+        Some(Rc::downgrade(host)),
+    ));
+    frame.busy.set(host.busy.get());
+    register(&frame);
+    host.frames.borrow_mut().push((NodeId(node), frame));
+}
+
+/// Shows a frame's page, whose scripts run in `realm`, in a window inside
+/// the window of the page whose realm is `parent`, at the box of that
+/// page's `<iframe>` element `node`.
+///
+/// # Safety
+/// `realm` must stay valid until [`detach_frame`] is called with it.
+pub unsafe fn attach_frame(
+    parent: *mut Realm,
+    node: u32,
+    page: Rc<DocumentPage>,
+    realm: *mut Realm,
+) {
+    match registered(|window| window.realm == parent) {
+        Some(host) => show_frame(&host, node, page, realm),
+        None => PENDING.0.borrow_mut().push((parent, node, page, realm)),
+    }
+}
+
+/// Ends the window of the frame whose realm is `realm`, and those of its
+/// own frames, before the realm goes away.
+pub fn detach_frame(realm: *mut Realm) {
+    PENDING
+        .0
+        .borrow_mut()
+        .retain(|(_, _, _, waiting)| *waiting != realm);
+    let Some(frame) = registered(|window| window.realm == realm) else {
+        return;
+    };
+    if let Some(host) = frame.parent.as_ref().and_then(alloc::rc::Weak::upgrade) {
+        host.frames
+            .borrow_mut()
+            .retain(|(_, known)| !Rc::ptr_eq(known, &frame));
+    }
+    frame.close_frames();
 }
 
 impl PageWindow {
@@ -70,7 +177,16 @@ impl PageWindow {
         let window = unsafe { nativeboat_win32::adopt(hwnd) }?;
         page.attach_window(window);
         page.set_transparent(nativeboat_win32::is_transparent(window));
-        Ok(PageWindow {
+        Ok(PageWindow::new(page, realm, window, None))
+    }
+
+    fn new(
+        page: Rc<DocumentPage>,
+        realm: *mut Realm,
+        window: WindowId,
+        parent: Option<alloc::rc::Weak<PageWindow>>,
+    ) -> PageWindow {
+        PageWindow {
             page,
             realm,
             window,
@@ -92,7 +208,19 @@ impl PageWindow {
             ))
             .map(|path| path.to_rust_lossy()),
             dumped: Cell::new(None),
-        })
+            frames: RefCell::new(Vec::new()),
+            parent,
+        }
+    }
+
+    /// Destroys the windows of this frame and of its frames.
+    fn close_frames(&self) {
+        for (_, frame) in core::mem::take(&mut *self.frames.borrow_mut()) {
+            frame.close_frames();
+        }
+        if self.parent.is_some() {
+            nativeboat_win32::destroy(self.window);
+        }
     }
 
     /// The native window.
@@ -120,6 +248,9 @@ impl PageWindow {
     /// [`leave`]: PageWindow::leave
     pub fn enter(&self) {
         self.busy.set(true);
+        for (_, frame) in self.frames.borrow().iter() {
+            frame.enter();
+        }
     }
 
     /// Ends [`enter`] and delivers the input that waited.
@@ -128,6 +259,15 @@ impl PageWindow {
     pub fn leave(&self) {
         self.busy.set(false);
         self.flush();
+        let frames: Vec<_> = self
+            .frames
+            .borrow()
+            .iter()
+            .map(|(_, frame)| frame.clone())
+            .collect();
+        for frame in frames {
+            frame.leave();
+        }
     }
 
     /// Delivers the input that waited for the realm.
@@ -145,6 +285,10 @@ impl PageWindow {
 
     /// The zoom the window's host asks for its page.
     fn host_zoom(&self) -> f32 {
+        // A frame shows at its page's zoom.
+        if let Some(host) = self.parent.as_ref().and_then(alloc::rc::Weak::upgrade) {
+            return host.host_zoom();
+        }
         nativeboat_win32::hwnd(self.window).map_or(1.0, |hwnd| {
             nativeboat_native::app_host::zoom(nativeboat_native::app_host::Window::from_raw(
                 hwnd as usize,
@@ -225,6 +369,16 @@ impl PageWindow {
             nativeboat_win32::follow_focus(self.window, focused.map(|node| u64::from(node.0)));
         }
         self.deliver_transition_events();
+        // Frames show at the content boxes of their elements, above the
+        // page; a frame whose element is not rendered is hidden.
+        let frames: Vec<_> = self.frames.borrow().clone();
+        for (node, frame) in frames {
+            let rect = self.page.frame_rect(node);
+            nativeboat_win32::place_child(frame.window, rect);
+            if rect.is_some() {
+                frame.render();
+            }
+        }
     }
 
     /// Fires the transition events of the frame at the page's elements.
@@ -277,6 +431,14 @@ impl PageWindow {
     /// Hosts render at most once a frame, and wake for the next frame while
     /// this holds.
     pub fn needs_render(&self) -> bool {
+        if self
+            .frames
+            .borrow()
+            .iter()
+            .any(|(_, frame)| frame.needs_render())
+        {
+            return true;
+        }
         let size = self.size();
         let spelling = self
             .page
@@ -865,6 +1027,7 @@ pub struct PageWindows(Rc<RefCell<Vec<Rc<PageWindow>>>>);
 impl PageWindows {
     /// Adds a window and makes these windows receive platform input.
     pub fn add(&self, window: Rc<PageWindow>) {
+        register(&window);
         self.0.borrow_mut().push(window);
         nativeboat_win32::set_handler(Box::new(self.clone()));
         // The win32 handler keeps a clone, so the list outlives the loop.
@@ -881,6 +1044,7 @@ impl PageWindows {
             .iter()
             .find(|candidate| candidate.window == window)
             .cloned()
+            .or_else(|| registered(|candidate| candidate.window == window))
     }
 }
 
@@ -897,7 +1061,12 @@ unsafe fn page_text(context: *mut c_void, window: usize, method: &str, text: &[u
         .find(|page| {
             nativeboat_win32::hwnd(page.window).is_some_and(|hwnd| hwnd as usize == window)
         })
-        .cloned();
+        .cloned()
+        .or_else(|| {
+            registered(|page| {
+                nativeboat_win32::hwnd(page.window).is_some_and(|hwnd| hwnd as usize == window)
+            })
+        });
     page.is_some_and(|page| {
         page.call(
             method,
@@ -912,6 +1081,11 @@ impl Handler for PageWindows {
             self.0
                 .borrow_mut()
                 .retain(|candidate| candidate.window != window);
+            WINDOWS.0.borrow_mut().retain(|known| {
+                known
+                    .upgrade()
+                    .is_some_and(|candidate| candidate.window != window)
+            });
             return false;
         }
         let Some(page) = self.get(window) else {

@@ -34,15 +34,26 @@ pub struct FrameDocument {
 }
 
 /// Makes a frame's page in a realm: a document for its HTML, which the
-/// realm's prelude adopts, laid out at a size, in the window it is shown in.
-pub type FramePage = fn(&mut Realm, &str, &str, (f32, f32), usize);
+/// realm's prelude adopts, laid out at a size, in the top-level window it
+/// is shown in, at the `<iframe>` element of the page whose realm is given.
+pub type FramePage = fn(&mut Realm, &str, &str, (f32, f32), usize, *mut Realm, u32);
+
+/// Ends what [`FramePage`] made for a frame's realm before the realm goes
+/// away.
+pub type FrameEnd = fn(*mut Realm);
 
 impl Realm {
     /// Lets this page's frames show the documents the build compiled, made
-    /// with `page`.
-    pub fn set_frame_documents(&mut self, documents: &'static [FrameDocument], page: FramePage) {
+    /// with `page` and ended with `end`.
+    pub fn set_frame_documents(
+        &mut self,
+        documents: &'static [FrameDocument],
+        page: FramePage,
+        end: FrameEnd,
+    ) {
         self.frame_documents = documents;
         self.frame_page = Some(page);
+        self.frame_end = Some(end);
     }
 }
 
@@ -65,6 +76,7 @@ pub(crate) fn start(
     port: &Value,
     url: &Value,
     size: (f32, f32),
+    node: u32,
 ) -> Result<u32, Thrown> {
     let Some(port) = crate::realm_ports::end_of(page, port) else {
         return Err(page.throw(ErrorKind::Type, "a frame's port must be a live channel end"));
@@ -82,10 +94,20 @@ pub(crate) fn start(
     realm.electron_version = page.electron_version;
     realm.frame_documents = page.frame_documents;
     realm.frame_page = page.frame_page;
+    realm.frame_end = page.frame_end;
     realm.worker_scope = Some(document.scope);
     realm.set_global("window", Value::Object(realm.global_object()));
     realm.set_renderer_location(&url);
-    make_page(&mut realm, &url, document.html, size, page.electron_window);
+    let parent: *mut Realm = page;
+    make_page(
+        &mut realm,
+        &url,
+        document.html,
+        size,
+        page.electron_window,
+        parent,
+        node,
+    );
     let port = crate::realm_ports::adopt_handle(&mut realm, port);
     realm.global_object().define(
         Key::name(PRELUDE_ARGUMENTS),
