@@ -275,6 +275,13 @@ try {
     $electronRows = @{}
     if ($Electron) {
         $electronExe = Join-Path $Example 'node_modules\electron\dist\electron.exe'
+        # Electron 42 and later download the binary on first use rather than on install.
+        $electronInstall = Join-Path $Example 'node_modules\electron\install.js'
+        if (-not (Test-Path $electronExe) -and (Test-Path $electronInstall)) {
+            Write-Host "Downloading Electron"
+            & node $electronInstall
+            if ($LASTEXITCODE -ne 0) { throw "Electron could not be downloaded into $Example" }
+        }
         if (-not (Test-Path $electronExe)) { throw "Electron is not installed in $Example" }
         $distribution = (Get-ChildItem (Split-Path $electronExe) -Recurse -File | Measure-Object Length -Sum).Sum / 1MB
         Write-Host "Measuring Electron"
