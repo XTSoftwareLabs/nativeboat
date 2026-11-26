@@ -6288,7 +6288,7 @@ fn named_scripts_are_lazy_entries_keyed_by_their_paths() {
         ("main.js", "export const main = 1;"),
         (
             "preview-src/index.ts",
-            "import { helper } from './helper'; export const preview = helper + 1;",
+            "import { helper } from 'preview-src/helper.ts'; export const preview = helper + 1;",
         ),
         ("preview-src/helper.ts", "export const helper = 2;"),
     ];
