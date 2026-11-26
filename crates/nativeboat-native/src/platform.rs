@@ -194,7 +194,11 @@ pub fn read_file(path: &str) -> Option<alloc::vec::Vec<u8>> {
     const GENERIC_READ: u32 = 0x8000_0000;
     const FILE_SHARE_READ_WRITE: u32 = 3;
     const OPEN_EXISTING: u32 = 3;
-    let name: alloc::vec::Vec<u16> = path.encode_utf16().chain([0]).collect();
+    let mut name: alloc::vec::Vec<u16> = path.encode_utf16().collect();
+    if let Some(unpacked) = crate::fs_win::without_asar(&name) {
+        name = unpacked;
+    }
+    name.push(0);
     // SAFETY: a null-terminated name; the handle is closed below and reads
     // write into the vector's spare capacity, which is then marked filled.
     unsafe {

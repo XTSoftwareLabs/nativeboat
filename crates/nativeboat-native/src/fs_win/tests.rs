@@ -1675,3 +1675,37 @@ fn volume_queries_retry_the_owned_files_parent_directory() {
         );
     }
 }
+
+#[test]
+fn asar_paths_reach_the_folders_their_archives_were_packed_from() {
+    let units = |text: &str| text.encode_utf16().collect::<Vec<_>>();
+    let text = |units: Vec<u16>| String::from_utf16(&units).unwrap();
+    let existing = [
+        r"C:\app",
+        r"C:\app\node_modules",
+        r"C:\app\node_modules\x\a.wasm",
+        r"C:\app\real.asar",
+    ];
+    let exists = |path: &[u16]| existing.iter().any(|known| units(known) == path);
+    let map = |path: &str| without_asar_in(&units(path), exists).map(text);
+    assert_eq!(
+        map(r"C:\app\node_modules.asar.unpacked\x\a.wasm").as_deref(),
+        Some(r"C:\app\node_modules\x\a.wasm")
+    );
+    assert_eq!(
+        map(r"C:\app\node_modules.ASAR\x").as_deref(),
+        Some(r"C:\app\node_modules\x")
+    );
+    // Existing archives and paths without them stay as they are.
+    assert_eq!(map(r"C:\app\real.asar\x"), None);
+    assert_eq!(map(r"C:\app\missing.asar\x"), None);
+    assert_eq!(map(r"C:\app\node_modules\x"), None);
+    assert_eq!(map(r"C:\app\.asar"), None);
+    let directory = Directory::new();
+    std::fs::create_dir(directory.0.join("pack")).unwrap();
+    let mut path = directory.path("pack.asar.unpacked");
+    path.pop();
+    let mut expected = directory.path("pack");
+    expected.pop();
+    assert_eq!(without_asar(&path), Some(expected));
+}

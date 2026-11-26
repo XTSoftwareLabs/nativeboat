@@ -1985,5 +1985,74 @@ pub fn statfs(path: &[u16]) -> Result<StatFs, i32> {
     })
 }
 
+/// Electron applications reach files in their packed `app.asar` archives
+/// and the `.asar.unpacked` folders beside them; a native build has neither,
+/// its files being in the folders those archives were packed from. `path`
+/// (absolute, without a terminator) with each missing `NAME.asar` or
+/// `NAME.asar.unpacked` component replaced by an existing `NAME`, or `None`
+/// when none is.
+pub fn without_asar(path: &[u16]) -> Option<Vec<u16>> {
+    without_asar_in(path, |candidate| {
+        let name: Vec<u16> = candidate.iter().copied().chain([0]).collect();
+        // SAFETY: a null-terminated name.
+        unsafe { GetFileAttributesW(name.as_ptr()) != u32::MAX }
+    })
+}
+
+fn without_asar_in(path: &[u16], exists: impl Fn(&[u16]) -> bool) -> Option<Vec<u16>> {
+    const SUFFIXES: [&str; 2] = [".asar.unpacked", ".asar"];
+    let lower: Vec<u16> = path
+        .iter()
+        .map(|&unit| {
+            if (65..=90).contains(&unit) {
+                unit + 32
+            } else {
+                unit
+            }
+        })
+        .collect();
+    let marker: Vec<u16> = ".asar".encode_utf16().collect();
+    if !lower
+        .windows(marker.len())
+        .any(|window| window == marker.as_slice())
+    {
+        return None;
+    }
+    let separator = |unit: u16| unit == u16::from(b'\\') || unit == u16::from(b'/');
+    let mut mapped: Vec<u16> = Vec::with_capacity(path.len());
+    let mut changed = false;
+    let mut start = 0;
+    while start <= path.len() {
+        let end = path[start..]
+            .iter()
+            .position(|&unit| separator(unit))
+            .map_or(path.len(), |offset| start + offset);
+        let component = &path[start..end];
+        let lower_component = &lower[start..end];
+        let suffix = SUFFIXES.iter().find_map(|suffix| {
+            let suffix: Vec<u16> = suffix.encode_utf16().collect();
+            (lower_component.len() > suffix.len() && lower_component.ends_with(&suffix))
+                .then_some(suffix.len())
+        });
+        let mut kept = component;
+        if let Some(length) = suffix {
+            let whole = [mapped.as_slice(), component].concat();
+            if !exists(&whole) {
+                let stripped = &component[..component.len() - length];
+                if exists(&[mapped.as_slice(), stripped].concat()) {
+                    kept = stripped;
+                    changed = true;
+                }
+            }
+        }
+        mapped.extend_from_slice(kept);
+        if end < path.len() {
+            mapped.push(path[end]);
+        }
+        start = end + 1;
+    }
+    changed.then_some(mapped)
+}
+
 #[cfg(test)]
 mod tests;
