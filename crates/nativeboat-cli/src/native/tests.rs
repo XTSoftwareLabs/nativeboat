@@ -8553,12 +8553,14 @@ setTimeout(() => { console.log('timeout', lines.join('|')); app.quit(); }, 10000
             "renderer.js",
             r#"const frame = document.getElementById('f');
 const doc = frame.contentDocument;
-window.native.log(`direct ${frame.contentWindow.location.pathname} ${doc !== null} ${frame.contentWindow.parent === window}`);
+// The listener runs in the frame's realm, where globals are the frame's.
+const log = window.native.log;
+log(`direct ${frame.contentWindow.location.pathname} ${doc !== null} ${frame.contentWindow.parent === window}`);
 frame.contentWindow.addEventListener('DOMContentLoaded', () => {
   doc.open();
   doc.write('<p id="x">written</p>');
   doc.close();
-  window.native.log(`written ${doc.getElementById('x').textContent} ${doc.body.children.length}`);
+  log(`written ${doc.getElementById('x').textContent} ${doc.body.children.length}`);
 }, { once: true });"#,
         ),
     ]);
