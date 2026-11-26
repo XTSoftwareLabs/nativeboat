@@ -18,6 +18,8 @@ npm ci --omit=dev
 nativeboat build
 ```
 
-`dist\Notes.exe` is the whole application: a native Win32 window with a
-native text box and button, no Electron, Chromium or WebView. The saved name
+`dist\Notes.exe` is a native Win32 program with a native text box and
+button, without Electron, Chromium or WebView. Ship it with the rest of
+`dist`, which holds its third-party notices and the files the application's
+packaging settings include, as an Electron package would. The saved name
 goes to `%APPDATA%\Notes\name.txt`.

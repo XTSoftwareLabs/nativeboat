@@ -2129,6 +2129,58 @@ fn app(source: &str) -> Fixture {
     ])
 }
 
+/// Runs a built program to its end, killing it and failing the test with
+/// what it printed so far when it runs longer than `limit`, so a program
+/// that never exits cannot hang the test run.
+fn output_within(command: &mut Command, limit: std::time::Duration) -> std::process::Output {
+    use std::io::Read;
+    use std::sync::{Arc, Mutex};
+    let mut child = command
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let collect = |mut stream: Box<dyn Read + Send>| {
+        let bytes = Arc::new(Mutex::new(Vec::new()));
+        let sink = bytes.clone();
+        std::thread::spawn(move || {
+            let mut chunk = [0; 4096];
+            while let Ok(count @ 1..) = stream.read(&mut chunk) {
+                sink.lock().unwrap().extend_from_slice(&chunk[..count]);
+            }
+        });
+        bytes
+    };
+    let stdout = collect(Box::new(child.stdout.take().unwrap()));
+    let stderr = collect(Box::new(child.stderr.take().unwrap()));
+    let text =
+        |bytes: &Arc<Mutex<Vec<u8>>>| String::from_utf8_lossy(&bytes.lock().unwrap()).into_owned();
+    let start = std::time::Instant::now();
+    let status = loop {
+        if let Some(status) = child.try_wait().unwrap() {
+            break status;
+        }
+        if start.elapsed() > limit {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!(
+                "the program ran longer than {limit:?}; stdout: {}; stderr: {}",
+                text(&stdout),
+                text(&stderr)
+            );
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    };
+    // The readers end with the program's pipes; give them a moment to drain.
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    std::process::Output {
+        status,
+        stdout: stdout.lock().unwrap().clone(),
+        stderr: stderr.lock().unwrap().clone(),
+    }
+}
+
 fn run(fixture: &Fixture, flags: &[&str]) -> (u8, String, String) {
     let mut args = vec![
         "nativeboat".to_owned(),
@@ -6602,7 +6654,7 @@ out.push(entries.every((entry) => {
   return (entry.family === 'IPv6' ? keys === 'address,netmask,family,mac,internal,cidr,scopeid' : keys === 'address,netmask,family,mac,internal,cidr') &&
     entry.cidr.startsWith(`${entry.address}/`) && /^([0-9a-f]{2}:){5}[0-9a-f]{2}$/.test(entry.mac);
 }));
-out.push(os.getPriority(), os.getPriority(0), t(() => os.getPriority(-1.5)), t(() => os.getPriority('x')), t(() => os.setPriority(0, 100)), t(() => os.setPriority(0, 0)));
+out.push([-20, -14, -7, 0, 10, 19].includes(os.getPriority()), os.getPriority(0) === os.getPriority(), t(() => os.getPriority(-1.5)), t(() => os.getPriority('x')), t(() => os.setPriority(0, 100)), t(() => os.setPriority(0, 0)));
 try { os.getPriority(2147483647); } catch (e) {
   out.push(e.name, e.code, e.message, show(e.info), e.errno, e.syscall, Object.keys(e).join(), String(e));
   e.errno = 5;
@@ -6650,8 +6702,8 @@ true
 true
 true
 true
-0
-0
+true
+true
 RangeError:ERR_OUT_OF_RANGE:The value of "pid" is out of range. It must be an integer. Received -1.5
 TypeError:ERR_INVALID_ARG_TYPE:The "pid" argument must be of type number. Received type string ('x')
 RangeError:ERR_OUT_OF_RANGE:The value of "priority" is out of range. It must be >= -20 && <= 19. Received 100
@@ -7560,7 +7612,10 @@ setTimeout(() => console.log('timeout', out.join('|')), 10000).unref();
     let (code, out, err) = run(&fixture, &["--out", "native-output"]);
     assert_eq!(code, 0, "{out}{err}");
     let executable = fixture.path("native-output/native-test.exe");
-    let executed = Command::new(&executable).env("PATH", "").output().unwrap();
+    let executed = output_within(
+        Command::new(&executable).env("PATH", ""),
+        std::time::Duration::from_secs(60),
+    );
     assert!(executed.status.success(), "{executed:?}");
     assert_eq!(
         String::from_utf8_lossy(&executed.stdout),

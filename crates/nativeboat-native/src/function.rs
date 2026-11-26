@@ -167,6 +167,7 @@ pub fn with_source_text(realm: &Realm, function: Value, text: &'static str) -> V
 }
 
 /// The functions whose text the program read, as `[text, function]` pairs.
+#[cfg(feature = "dom")]
 pub(crate) fn source_functions(realm: &mut Realm) -> Value {
     let pairs = realm
         .source_functions

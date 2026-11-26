@@ -86,12 +86,18 @@ fn queue_read(
     };
     let worker_state = state.clone();
     let referenced = state.borrow().referenced.clone();
+    // Begun here, so changes made once the watch exists are recorded even
+    // before the worker waits for them.
+    // SAFETY: the watcher owns the open handle until the worker's wait
+    // returns; close waits for worker completion before releasing it.
+    let pending = unsafe {
+        crate::fs_win::watch_begin(handle as crate::fs_win::Handle, recursive, &cancelled)
+    };
     let submitted = realm.submit_io_with_ref(
         move || {
-            // SAFETY: this worker owns the open handle until its read returns;
-            // close waits for worker completion before releasing it.
+            // SAFETY: as above; the read was begun on this handle.
             unsafe {
-                crate::fs_win::watch_read(handle as crate::fs_win::Handle, recursive, &cancelled)
+                crate::fs_win::watch_complete(handle as crate::fs_win::Handle, pending, &cancelled)
             }
         },
         referenced,

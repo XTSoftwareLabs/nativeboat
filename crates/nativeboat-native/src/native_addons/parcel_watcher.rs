@@ -227,11 +227,18 @@ fn read(realm: &mut Realm, state: Shared) -> Result<(), Thrown> {
         )
     };
     let worker = state.clone();
+    // Begun here, so changes made once `subscribe` resolves are recorded even
+    // before the worker waits for them.
+    // SAFETY: the subscription owns the open handle until the worker's wait
+    // returns; unsubscribing waits for it before closing the handle.
+    let pending =
+        unsafe { crate::fs_win::watch_begin(handle as crate::fs_win::Handle, true, &cancelled) };
     let submitted = realm.submit_io_with_ref(
         move || {
-            // SAFETY: this worker owns the open handle until its read
-            // returns; unsubscribing waits for it before closing the handle.
-            unsafe { crate::fs_win::watch_read(handle as crate::fs_win::Handle, true, &cancelled) }
+            // SAFETY: as above; the read was begun on this handle.
+            unsafe {
+                crate::fs_win::watch_complete(handle as crate::fs_win::Handle, pending, &cancelled)
+            }
         },
         referenced,
         move |realm, result| {

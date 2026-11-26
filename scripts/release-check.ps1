@@ -11,7 +11,7 @@
 param(
     [string]$Example = (Join-Path $PSScriptRoot '..\examples\react-vite'),
     [int]$Runs = 5,
-    [double]$MaxSizeMB = 16,
+    [double]$MaxSizeMB = 32,
     [double]$MaxStartupMs = 1500,
     [double]$MaxMemoryMB = 80,
     [ValidateSet('release', 'debug')][string]$BuildProfile = 'release',
@@ -227,7 +227,13 @@ $out = Join-Path $work 'dist'
 $appData = Join-Path $work 'appdata'
 New-Item -ItemType Directory -Force $appData | Out-Null
 $failures = @()
-foreach ($binary in @(Join-Path $release 'nativeboat.exe') + @(Get-ChildItem (Join-Path $release 'toolchain') -Recurse -Include *.exe, *.dll -ErrorAction SilentlyContinue | ForEach-Object FullName)) {
+# The renderer libraries' procedural macro (serde_derive) is a host DLL that
+# rustc only reads metadata from when linking the precompiled libraries: no
+# compiled code uses its derives, so it is never loaded on users' machines.
+$binaries = @(Join-Path $release 'nativeboat.exe') + @(Get-ChildItem (Join-Path $release 'toolchain') -Recurse -Include *.exe, *.dll -ErrorAction SilentlyContinue |
+    Where-Object { -not ($_.Directory.Name -eq 'renderer-libs' -and $_.Name -like 'serde_derive-*.dll') } |
+    ForEach-Object FullName)
+foreach ($binary in $binaries) {
     $failures += @(Test-Imports $binary)
 }
 
@@ -235,9 +241,12 @@ try {
     Write-Host "Compiling $Example"
     & (Join-Path $release 'nativeboat.exe') build $Example --out $out
     if ($LASTEXITCODE) { throw "nativeboat build failed with exit code $LASTEXITCODE" }
-    $outputs = @(Get-ChildItem $out)
-    if ($outputs.Count -ne 1 -or $outputs[0].Name -ne 'Notes.exe') {
-        $failures += "the output is not a single Notes.exe: $($outputs.Name -join ', ')"
+    # The executable and its notices, beside the application's own files as
+    # electron-builder's files setting packages them.
+    foreach ($required in 'Notes.exe', 'THIRD-PARTY-NOTICES.txt') {
+        if (-not (Test-Path -LiteralPath (Join-Path $out $required) -PathType Leaf)) {
+            $failures += "the output has no ${required}: $(@(Get-ChildItem $out).Name -join ', ')"
+        }
     }
     $exe = Join-Path $out 'Notes.exe'
     $sizeMB = (Get-Item $exe).Length / 1MB

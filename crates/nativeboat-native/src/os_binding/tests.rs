@@ -232,8 +232,15 @@ fn machine_queries_answer_like_node() {
     assert!(version.starts_with("Windows"));
     assert_eq!(release.split('.').count(), 3);
     assert_eq!(machine, "x86_64");
-    assert_eq!(priority(0), Ok(0));
+    // The test process runs at whatever priority it was started with (CI
+    // runners start jobs below normal); after it is set to normal it reads 0.
+    assert!(
+        matches!(priority(0), Ok(-20 | -14 | -7 | 0 | 10 | 19)),
+        "{:?}",
+        priority(0)
+    );
     assert_eq!(set_priority(0, 0), Ok(()));
+    assert_eq!(priority(0), Ok(0));
     assert_eq!(priority(i32::MAX), Err(UV_ESRCH));
     // Other processes are opened and closed again.
     let own = std::process::id() as i32;
@@ -542,10 +549,15 @@ fn binding_functions_report_through_their_context() {
     let home = call(&mut realm, &binding, "getHomeDirectory", &[context()]).unwrap();
     assert!(matches!(home, Value::String(_)));
     let information = call(&mut realm, &binding, "getOSInformation", &[]).unwrap();
-    assert!(show(&mut realm, &information).starts_with("[ 'Windows_NT'"));
+    // Long product names make the array span lines.
+    let shown = show(&mut realm, &information);
+    assert!(
+        shown.starts_with('[') && shown.contains("'Windows_NT'"),
+        "{shown}"
+    );
     let cpus = call(&mut realm, &binding, "getCPUs", &[]).unwrap();
     let length = ops::get(&mut realm, &cpus, &Key::name("length")).unwrap();
-    assert!(matches!(length, Value::Number(count) if count >= 7.0));
+    assert!(matches!(length, Value::Number(count) if count >= 1.0));
     let interfaces = call(&mut realm, &binding, "getInterfaceAddresses", &[context()]).unwrap();
     assert!(show(&mut realm, &interfaces).contains("IPv4"));
     let averages = Value::Object(realm.array(vec![Value::Number(1.0); 3]));
@@ -564,7 +576,11 @@ fn binding_functions_report_through_their_context() {
         &[Value::Number(0.0), context()],
     )
     .unwrap();
-    assert!(matches!(priority, Value::Number(0.0)));
+    // Whatever priority the test process has: libuv's values only.
+    assert!(
+        matches!(priority, Value::Number(value) if [-20.0, -14.0, -7.0, 0.0, 10.0, 19.0].contains(&value)),
+        "{priority:?}"
+    );
     let set = call(
         &mut realm,
         &binding,

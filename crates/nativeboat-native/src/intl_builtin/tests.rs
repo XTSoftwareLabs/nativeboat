@@ -199,7 +199,10 @@ fn formatters_follow_the_locale_and_options() {
         ),
         ("es-MX", &hours, "2:07 p.\u{a0}m."),
     ] {
-        assert_eq!(date(&mut realm, locale, options), expected, "{locale}");
+        // Newer Windows ICU (CLDR 42 and later) puts a narrow no-break space
+        // before the day period where older versions put a space.
+        let formatted = date(&mut realm, locale, options).replace('\u{202f}', " ");
+        assert_eq!(formatted, expected, "{locale}");
     }
     assert_eq!(
         call(
@@ -611,8 +614,10 @@ fn locales_maximize_minimize_and_describe_themselves_with_windows_icu() {
     let british = locale(&mut realm, "en-GB", &[]).unwrap();
     assert_eq!(text_of(&mut realm, &british, "timeZones"), "Europe/London");
     let chinese = locale(&mut realm, "zh-CN", &[]).unwrap();
-    assert_eq!(
-        text_of(&mut realm, &chinese, "getTimeZones()"),
-        "Asia/Shanghai,Asia/Urumqi"
+    // Windows ICU versions differ in listing Urumqi's zone for China.
+    let zones = text_of(&mut realm, &chinese, "getTimeZones()");
+    assert!(
+        ["Asia/Shanghai", "Asia/Shanghai,Asia/Urumqi"].contains(&zones.as_str()),
+        "{zones}"
     );
 }

@@ -496,7 +496,7 @@ pub(super) fn function_source_text(text: &str, typescript: bool) -> Option<Strin
     let wrapped = format!("({text});");
     let allocator = Allocator::default();
     let parsed = Parser::new(&allocator, &wrapped, SourceType::ts()).parse();
-    if parsed.panicked || parsed.diagnostics.has_errors() {
+    if parsed.fatal_error || parsed.diagnostics.has_errors() {
         return None;
     }
     let mut program = parsed.program;

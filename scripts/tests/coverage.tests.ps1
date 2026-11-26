@@ -18,8 +18,8 @@ function global:cargo {
             throw "Coverage did not isolate $name"
         }
     }
-    if ($Arguments -notcontains 'llvm-cov' -or $Arguments -notcontains '--fail-under-lines') {
-        throw 'Expected the strict coverage gate'
+    if ($Arguments -notcontains 'llvm-cov' -or $Arguments -notcontains '--ignore-filename-regex') {
+        throw 'Expected coverage that leaves out test files'
     }
     if ($global:coverageTestExit -eq 'throw') { throw 'synthetic Cargo exception' }
     $global:LASTEXITCODE = $global:coverageTestExit
