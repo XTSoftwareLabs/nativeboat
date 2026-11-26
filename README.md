@@ -1,5 +1,12 @@
 # NativeBoat
 
+[![CI](https://github.com/XTSoftwareLabs/nativeboat/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/XTSoftwareLabs/nativeboat/actions/workflows/ci.yml)
+[![Release](https://github.com/XTSoftwareLabs/nativeboat/actions/workflows/release.yml/badge.svg)](https://github.com/XTSoftwareLabs/nativeboat/actions/workflows/release.yml)
+[![Latest release](https://img.shields.io/github/v/release/XTSoftwareLabs/nativeboat?include_prereleases&sort=semver)](https://github.com/XTSoftwareLabs/nativeboat/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Platform: Windows x64](https://img.shields.io/badge/platform-Windows%20x64-0078d4.svg)
+![Rust 1.96](https://img.shields.io/badge/rust-1.96-orange.svg)
+
 NativeBoat compiles an Electron application into a native Windows executable.
 It takes your project as it is: its JavaScript or TypeScript, HTML, CSS and
 installed dependencies. The executable it builds runs without Chromium,
