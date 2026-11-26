@@ -62,6 +62,18 @@ pub struct PageWindow {
 /// it is in and input finds the window it arrived at.
 struct Registry(RefCell<Vec<alloc::rc::Weak<PageWindow>>>);
 
+/// A frame whose page's window does not exist yet, as for the `<iframe>`
+/// elements of a page's HTML, which start while its scripts first run:
+/// the page's realm, the element, the frame's page and its realm.
+type Pending = (*mut Realm, u32, Rc<DocumentPage>, *mut Realm);
+
+struct PendingFrames(RefCell<Vec<Pending>>);
+
+// SAFETY: as for `Registry`.
+unsafe impl Sync for PendingFrames {}
+
+static PENDING: PendingFrames = PendingFrames(RefCell::new(Vec::new()));
+
 // SAFETY: page windows are made and used only on the thread that runs the
 // application's windows, which alone touches the registry.
 unsafe impl Sync for Registry {}
@@ -77,9 +89,39 @@ fn registered(found: impl Fn(&PageWindow) -> bool) -> Option<Rc<PageWindow>> {
 }
 
 fn register(window: &Rc<PageWindow>) {
-    let mut windows = WINDOWS.0.borrow_mut();
-    windows.retain(|known| known.strong_count() > 0);
-    windows.push(Rc::downgrade(window));
+    {
+        let mut windows = WINDOWS.0.borrow_mut();
+        windows.retain(|known| known.strong_count() > 0);
+        windows.push(Rc::downgrade(window));
+    }
+    // Frames that started before this window existed now show in it.
+    let waiting: Vec<Pending> = {
+        let mut pending = PENDING.0.borrow_mut();
+        let (mine, others) = core::mem::take(&mut *pending)
+            .into_iter()
+            .partition(|(parent, ..)| *parent == window.realm);
+        *pending = others;
+        mine
+    };
+    for (_, node, page, realm) in waiting {
+        show_frame(window, node, page, realm);
+    }
+}
+
+fn show_frame(host: &Rc<PageWindow>, node: u32, page: Rc<DocumentPage>, realm: *mut Realm) {
+    let Ok(window) = nativeboat_win32::create_child(host.window) else {
+        return;
+    };
+    page.attach_window(window);
+    let frame = Rc::new(PageWindow::new(
+        page,
+        realm,
+        window,
+        Some(Rc::downgrade(host)),
+    ));
+    frame.busy.set(host.busy.get());
+    register(&frame);
+    host.frames.borrow_mut().push((NodeId(node), frame));
 }
 
 /// Shows a frame's page, whose scripts run in `realm`, in a window inside
@@ -94,27 +136,19 @@ pub unsafe fn attach_frame(
     page: Rc<DocumentPage>,
     realm: *mut Realm,
 ) {
-    let Some(host) = registered(|window| window.realm == parent) else {
-        return;
-    };
-    let Ok(window) = nativeboat_win32::create_child(host.window) else {
-        return;
-    };
-    page.attach_window(window);
-    let frame = Rc::new(PageWindow::new(
-        page,
-        realm,
-        window,
-        Some(Rc::downgrade(&host)),
-    ));
-    frame.busy.set(host.busy.get());
-    register(&frame);
-    host.frames.borrow_mut().push((NodeId(node), frame));
+    match registered(|window| window.realm == parent) {
+        Some(host) => show_frame(&host, node, page, realm),
+        None => PENDING.0.borrow_mut().push((parent, node, page, realm)),
+    }
 }
 
 /// Ends the window of the frame whose realm is `realm`, and those of its
 /// own frames, before the realm goes away.
 pub fn detach_frame(realm: *mut Realm) {
+    PENDING
+        .0
+        .borrow_mut()
+        .retain(|(_, _, _, waiting)| *waiting != realm);
     let Some(frame) = registered(|window| window.realm == realm) else {
         return;
     };
