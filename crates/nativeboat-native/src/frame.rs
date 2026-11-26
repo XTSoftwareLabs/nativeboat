@@ -93,7 +93,9 @@ pub(crate) fn start(
     );
     // A frame's exceptions reach its own handlers, as a page's do; they
     // never end its page.
-    if realm.start_host(document.initialize).is_ok()
+    if realm
+        .start_host(document.initialize)
+        .is_none_or(|status| status == 0)
         && let Err(thrown) = realm.web_call("ready", &[])
     {
         realm.queue_host_error(thrown);
