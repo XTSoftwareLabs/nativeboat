@@ -93,6 +93,10 @@ pub(crate) fn start(
     };
     crate::realm_ports::move_out(page, &[port]);
     let mut realm = Box::new(page.sibling());
+    // A frame and its page call each other's functions, which run in the
+    // realm that made them.
+    page.keep_functions_home();
+    realm.keep_functions_home();
     realm.message_ports = page.message_ports.clone();
     realm.node_library = page.node_library;
     realm.source_functions = page.source_functions.clone();

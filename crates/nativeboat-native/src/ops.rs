@@ -1248,6 +1248,14 @@ pub fn call(realm: &mut Realm, function: &Value, this: Value, args: &[Value]) ->
     let Some((code, _)) = code else {
         return Err(realm.throw(ErrorKind::Type, "value is not a function"));
     };
+    if let Some(home) = function
+        .as_object()
+        .and_then(|object| realm.home_of(object))
+    {
+        // SAFETY: a realm that keeps its functions home stays where it is
+        // until it drops, which removes it, and runs on this thread.
+        return unsafe { &mut *home }.enter(&code, this, args);
+    }
     realm.enter(&code, this, args)
 }
 
@@ -1264,6 +1272,13 @@ pub fn call_site(
     let Some((code, _)) = code else {
         return Err(realm.throw(ErrorKind::Type, &format!("{site} is not a function")));
     };
+    if let Some(home) = function
+        .as_object()
+        .and_then(|object| realm.home_of(object))
+    {
+        // SAFETY: as in `call`.
+        return unsafe { &mut *home }.enter(&code, this, args);
+    }
     if realm.near_depth_limit() && crate::trace::throws_traced() {
         crate::platform::write_stderr(&format!("nativeboat: deep call {site}\n"));
     }

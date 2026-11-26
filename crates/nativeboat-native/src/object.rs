@@ -342,6 +342,8 @@ pub enum Kind {
         code: NativeCode,
         /// Whether `new` may call it.
         constructor: bool,
+        /// The id of the realm that made it, whose globals its code reads.
+        realm: u32,
     },
     /// A native built-in with distinct call and construction behavior.
     BuiltinConstructor {
@@ -688,10 +690,20 @@ impl Object {
         self.0.borrow_mut()
     }
 
+    /// The id of the realm a function was made in, or 0.
+    pub(crate) fn home(&self) -> u32 {
+        match &self.data().kind {
+            Kind::Function { realm, .. } => *realm,
+            _ => 0,
+        }
+    }
+
     /// The compiled code, if this is a function.
     pub fn code(&self) -> Option<(NativeCode, bool)> {
         match &self.data().kind {
-            Kind::Function { code, constructor } => Some((code.clone(), *constructor)),
+            Kind::Function {
+                code, constructor, ..
+            } => Some((code.clone(), *constructor)),
             Kind::BoundFunction {
                 code, constructor, ..
             } => Some((code.clone(), *constructor)),
