@@ -159,7 +159,7 @@ fn storage_and_platform_objects() {
         document.title = 'One'; eq(document.title, 'One', 'title'); eq(document.querySelectorAll('title').length, 1, 'title element'); document.title = ' Two  words '; eq(document.title, 'Two words', 'trimmed');
         eq(document.forms.length + document.images.length + document.links.length + document.scripts.length, 0, 'collections');
         eq(document.scrollingElement, document.documentElement, 'scrolling'); eq(document.getElementsByName('x').length, 0, 'by name');
-        assert(!document.execCommand('bold') && !document.queryCommandSupported('bold'), 'commands'); eq(document.open(), document, 'open'); document.close(); document.write('x'); document.writeln('x');
+        assert(!document.execCommand('bold') && !document.queryCommandSupported('bold'), 'commands');
         eq(document.importNode(ids('#p')).id, 'p', 'import'); const adopted = document.adoptNode(document.createElement('i')); eq(adopted.parentNode, null, 'adopt');
         document.body.appendChild(adopted); document.adoptNode(adopted); eq(adopted.parentNode, null, 'adopt detaches');
         "#,

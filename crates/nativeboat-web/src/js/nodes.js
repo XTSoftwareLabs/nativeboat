@@ -1004,19 +1004,47 @@ class Document extends Node {
     return '';
   }
 
+  // `open()` empties the page's document, `write()` gathers its new
+  // markup, and `close()` parses it, runs the scripts it names and loads
+  // the document again.
   open() {
+    if (this !== document) return this;
+    while (this.firstChild) this.removeChild(this.firstChild);
+    writing = [];
+    readyState = 'loading';
     return this;
   }
 
-  close() {}
+  close() {
+    if (this !== document || writing === null) return;
+    const markup = writing.join('');
+    writing = null;
+    const parsed = wrap(native.parseDocument(markup));
+    for (const child of Array.from(parsed.childNodes)) {
+      if (child.nodeType === 10) continue;
+      this.appendChild(this.adoptNode(child));
+    }
+    readyState = 'interactive';
+    fire(document, Event, 'DOMContentLoaded', { bubbles: true });
+    readyState = 'complete';
+    fire(global, Event, 'load');
+  }
 
-  write() {}
+  write(...text) {
+    if (this !== document) return;
+    if (writing === null) this.open();
+    writing.push(...text.map(String));
+  }
 
-  writeln() {}
+  writeln(...text) {
+    this.write(...text, '\n');
+  }
 }
 mixin(Document.prototype, parentNodeMethods, parentNodeAccessors);
 
 let readyState = 'loading';
+// The markup `document.write()` gathers after `open()`, until `close()`.
+let writing = null;
 let cookies = '';
 const document = adopt(0, Object.create(Document.prototype));
 

@@ -6,7 +6,9 @@
 //! A frame and its page talk over a channel of the process's message
 //! ports: each side's prelude wraps its end as the other's window, so
 //! `postMessage` between them carries data, the sender's origin and
-//! transferred ports, and the frame tells its page when it loaded.
+//! transferred ports, and the frame tells its page when it loaded. A frame
+//! of the page's own origin is a realm of the page's agent, and the two
+//! reach each other's windows directly, as same-origin frames do.
 
 #[allow(unused_imports)]
 use crate::prelude::*;
@@ -69,25 +71,28 @@ fn document(documents: &[FrameDocument], url: &str) -> Option<FrameDocument> {
 }
 
 /// Starts the frame of `page` that shows `url`, at a size, with the end
-/// `port` of its channel. Returns the frame's id, or 0 when the build
-/// compiled no document for the URL, which leaves the frame empty.
+/// `port` of its channel, for the `<iframe>` element `node`; a frame of the
+/// page's origin gets the page's window as its parent's. Returns the
+/// frame's id and window, or 0 and undefined when the build compiled no
+/// document for the URL, which leaves the frame empty.
 pub(crate) fn start(
     page: &mut Realm,
     port: &Value,
     url: &Value,
     size: (f32, f32),
     node: u32,
-) -> Result<u32, Thrown> {
+    same_origin: bool,
+) -> Result<(u32, Value), Thrown> {
     let Some(port) = crate::realm_ports::end_of(page, port) else {
         return Err(page.throw(ErrorKind::Type, "a frame's port must be a live channel end"));
     };
     let url = ops::to_string(page, url)?.to_rust_lossy();
     let (Some(make_page), Some(document)) = (page.frame_page, document(page.frame_documents, &url))
     else {
-        return Ok(0);
+        return Ok((0, Value::Undefined));
     };
     crate::realm_ports::move_out(page, &[port]);
-    let mut realm = Box::new(Realm::new());
+    let mut realm = Box::new(page.sibling());
     realm.message_ports = page.message_ports.clone();
     realm.node_library = page.node_library;
     realm.source_functions = page.source_functions.clone();
@@ -109,21 +114,32 @@ pub(crate) fn start(
         node,
     );
     let port = crate::realm_ports::adopt_handle(&mut realm, port);
+    let parent_window = if same_origin {
+        Value::Object(page.global_object())
+    } else {
+        Value::Null
+    };
+    let arguments = realm.array(vec![Value::Object(port), parent_window]);
     realm.global_object().define(
         Key::name(PRELUDE_ARGUMENTS),
-        Property::hidden(Value::Object(port)),
+        Property::hidden(Value::Object(arguments)),
     );
     // A frame's exceptions reach its own handlers, as a page's do; they
-    // never end its page.
+    // never end its page. Its document loads in a later task, once the
+    // page that made the frame can listen to it.
     if realm
         .start_host(document.initialize)
         .is_none_or(|status| status == 0)
-        && let Err(thrown) = realm.web_call("ready", &[])
     {
-        realm.queue_host_error(thrown);
+        let ready = realm.function("ready", 0, false, |realm, _, _| {
+            realm.web_call("ready", &[])?;
+            Ok(Value::Undefined)
+        });
+        realm.native_timeout(ready, 0.0, alloc::rc::Rc::new(core::cell::Cell::new(true)));
     }
+    let window = Value::Object(realm.global_object());
     page.next_worker += 1;
     let id = page.next_worker;
     page.workers.push(Worker::new(id, realm));
-    Ok(id)
+    Ok((id, window))
 }
