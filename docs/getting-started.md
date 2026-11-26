@@ -157,7 +157,7 @@ names.
 
 ## Frame documents and forked modules
 
-Two more settings name files the build cannot find by following imports,
+Three more settings name files the build cannot find by following imports,
 in the same places as `plugins`:
 
 ```json
@@ -170,6 +170,19 @@ in the same places as `plugins`:
 `documents` takes file globs of HTML documents that the application shows
 in `<iframe>` elements by URLs it builds while it runs. Those documents are
 compiled like pages.
+
+`scripts` names scripts that pages load by URLs they build while they run,
+such as the `<script src>` of HTML the application generates. Give a path,
+or a `path` that the URLs end with and the `source` it is compiled from
+when the application's own build makes the file:
+
+```json
+{
+  "scripts": [
+    { "path": "extensions/markdown/media/index.js", "source": "extensions/markdown/preview-src/index.ts" }
+  ]
+}
+```
 
 `forks` takes the paths of modules that the application starts with
 `fork()` by paths it builds while it runs, such as a plugin's language

@@ -94,6 +94,11 @@ pub struct Project {
     /// is compiled as an entry of its own, which the program runs when it
     /// starts as that child.
     pub forks: Vec<Entry>,
+    /// Scripts the program's pages load by URLs they build while they run,
+    /// such as the scripts of HTML the program generates, from the
+    /// `scripts` setting: the path their URLs end with, and the source each
+    /// is compiled from.
+    pub scripts: Vec<(String, PathBuf)>,
     /// The main modules of plugin packages (see [`plugins`]): entries the
     /// program loads when it requires or imports their paths.
     pub plugins: Vec<Entry>,
@@ -760,6 +765,16 @@ fn load_package(
             add_entry(&mut forks, found);
         }
     }
+    let script_settings = settings.scripts.clone().or_else(|| {
+        package["nativeboat"]
+            .get("scripts")
+            .and_then(scripts_setting)
+    });
+    let scripts = named_scripts(
+        root,
+        script_settings.as_deref().unwrap_or_default(),
+        &mut warnings,
+    );
     // Modules forked by paths the program builds while it runs, such as a
     // plugin's language server, are named in the `forks` setting.
     let fork_paths = settings.forks.clone().or_else(|| {
@@ -852,6 +867,7 @@ fn load_package(
         main,
         preloads,
         forks,
+        scripts,
         plugins,
         pages,
         renderer_root,
@@ -882,3 +898,39 @@ fn load_package(
 
 #[cfg(test)]
 mod tests;
+
+/// The entries of a `scripts` setting: paths, or objects with a `path` and
+/// a `source`.
+pub(crate) fn scripts_setting(value: &Value) -> Option<Vec<Value>> {
+    let items = value.as_array()?;
+    let valid = items
+        .iter()
+        .all(|item| item.is_string() || (item["path"].is_string() && item["source"].is_string()));
+    valid.then(|| items.clone())
+}
+
+/// The scripts a `scripts` setting names: the path their URLs end with,
+/// and the file each is compiled from, which may be the TypeScript source
+/// of a path's emitted file. A warning for each that has no file.
+fn named_scripts(
+    root: &Path,
+    items: &[Value],
+    warnings: &mut Vec<String>,
+) -> Vec<(String, PathBuf)> {
+    let mut scripts = Vec::new();
+    for item in items {
+        let (path, source) = match item {
+            Value::String(path) => (path.as_str(), path.as_str()),
+            item => (
+                item["path"].as_str().unwrap_or_default(),
+                item["source"].as_str().unwrap_or_default(),
+            ),
+        };
+        let file = nativeboat_bundler::resolve::normalize(&root.join(source));
+        match plugins::existing(&file) {
+            Some(found) => scripts.push((path.trim_start_matches("./").replace('\\', "/"), found)),
+            None => warnings.push(format!("the script \"{path}\" has no file at {source}")),
+        }
+    }
+    scripts
+}

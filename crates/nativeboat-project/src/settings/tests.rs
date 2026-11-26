@@ -80,3 +80,17 @@ fn settings_files_name_forked_modules() {
     let error = Settings::read(&file("bad-forks", "{\"forks\": {}}")).unwrap_err();
     assert!(error.contains("must be a list of module paths"), "{error}");
 }
+
+#[test]
+fn settings_files_name_scripts_pages_load() {
+    let path = file(
+        "scripts",
+        "{\"scripts\": [\"media/a.js\", {\"path\": \"media/b.js\", \"source\": \"src/b.ts\"}]}",
+    );
+    assert_eq!(Settings::read(&path).unwrap().scripts.unwrap().len(), 2);
+    let error = Settings::read(&file("bad-scripts", "{\"scripts\": [{\"path\": 1}]}")).unwrap_err();
+    assert!(
+        error.contains("must be a list of paths or of objects"),
+        "{error}"
+    );
+}

@@ -2336,6 +2336,31 @@ pub(super) fn project(
             }
         }
     }
+    // Scripts the project names, which the program loads by URLs it builds.
+    let mut named_scripts = Vec::new();
+    for (key, source) in &options.named_scripts {
+        let index = match indexes.get(source) {
+            Some(index) => *index,
+            None => {
+                let index = records.len();
+                indexes.insert(source.clone(), index);
+                records.push(None);
+                match load(source) {
+                    Some(text) => pending.push((source.clone(), text)),
+                    None => {
+                        let file = Source {
+                            path: source,
+                            text: "",
+                        };
+                        errors.push(file.error(Span::default(), "cannot read the script"));
+                        records[index] = Some(placeholder(source));
+                    }
+                }
+                index
+            }
+        };
+        named_scripts.push((key.replace('\\', "/").to_ascii_lowercase(), index));
+    }
     loop {
         while let Some((path, text)) = pending.pop() {
             let index = indexes[&path];
@@ -2693,20 +2718,20 @@ pub(super) fn project(
         })
         .collect();
     let mut scripts: Vec<(String, usize)> = Vec::new();
-    for record in &records {
-        for (key, target) in &record.package_scripts {
-            if scripts.iter().any(|(known, _)| known == key) {
-                continue;
-            }
-            let entry = entry_roots
-                .iter()
-                .position(|root| root == target)
-                .unwrap_or_else(|| {
-                    entry_roots.push(*target);
-                    entry_roots.len() - 1
-                });
-            scripts.push((key.clone(), entry));
+    // The scripts the project names first, then those the graph found.
+    let found = records.iter().flat_map(|record| &record.package_scripts);
+    for (key, target) in named_scripts.iter().chain(found) {
+        if scripts.iter().any(|(known, _)| known == key) {
+            continue;
         }
+        let entry = entry_roots
+            .iter()
+            .position(|root| root == target)
+            .unwrap_or_else(|| {
+                entry_roots.push(*target);
+                entry_roots.len() - 1
+            });
+        scripts.push((key.clone(), entry));
     }
     for (module, record) in records.iter().enumerate() {
         // Computed imports without candidates only reject.

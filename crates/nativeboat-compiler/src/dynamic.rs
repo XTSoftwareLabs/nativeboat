@@ -227,6 +227,10 @@ pub struct CompileOptions {
     /// constructs workers, the scripts they may run (see
     /// `RequestKind::Worker`).
     pub package_scripts: bool,
+    /// Scripts the program loads by URLs it builds while it runs, such as
+    /// those of HTML it generates: each source is a lazy entry of the
+    /// graph, keyed by the path its URLs end with.
+    pub named_scripts: Vec<(String, std::path::PathBuf)>,
     /// Source folders whose modules the application runs from the files its
     /// own build emits from them, with the app-relative folder each emits
     /// to: plugin packages' `rootDir` and `outDir`. Their modules'

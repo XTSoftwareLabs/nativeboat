@@ -6296,6 +6296,32 @@ fn scripts_named_by_paths_are_lazy_entries_of_graphs_with_workers() {
     );
 }
 
+/// Scripts a project names are lazy entries keyed by the paths the program
+/// loads them by, compiled from the sources it gives.
+#[test]
+fn named_scripts_are_lazy_entries_keyed_by_their_paths() {
+    let files = [
+        ("main.js", "export const main = 1;"),
+        (
+            "preview-src/index.ts",
+            "import { helper } from 'preview-src/helper.ts'; export const preview = helper + 1;",
+        ),
+        ("preview-src/helper.ts", "export const helper = 2;"),
+    ];
+    let options = CompileOptions {
+        package_scripts: true,
+        named_scripts: vec![(
+            "Media/Index.js".to_owned(),
+            std::path::PathBuf::from("preview-src/index.ts"),
+        )],
+        ..CompileOptions::default()
+    };
+    let mut requested = Vec::new();
+    let module = mixed_with("main.js", &files, &options, &mut requested).unwrap();
+    assert_eq!(module.scripts(), [("media/index.js".to_owned(), 1)]);
+    assert_eq!(module.entry_count(), 2);
+}
+
 /// A graph that registers service workers looks up their scripts as it
 /// does workers', by the paths before a query, also in template literals.
 #[test]
