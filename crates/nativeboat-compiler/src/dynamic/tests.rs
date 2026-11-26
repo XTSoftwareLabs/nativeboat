@@ -299,7 +299,11 @@ fn build_runtime() -> PathBuf {
     }
     let name = format!("runtime-{:016x}", std::hash::Hasher::finish(&hasher));
     let directory = workspace_target().join(&name);
-    if directory.join("libnativeboat_native.rlib").is_file() {
+    let complete = |directory: &Path| {
+        directory.join("libnativeboat_native.rlib").is_file()
+            && directory.join("regexp/libnativeboat_regexp.rlib").is_file()
+    };
+    if complete(&directory) {
         return directory;
     }
     fs::create_dir_all(workspace_target()).unwrap();
@@ -460,8 +464,14 @@ fn build_runtime() -> PathBuf {
             String::from_utf8_lossy(&built.stderr)
         );
     }
-    // A concurrent test process may have published the same build.
+    // A concurrent test process may have published the same build. A
+    // directory without the libraries, such as one a CI cache restored
+    // without its files, is replaced.
     if fs::rename(&staging, &directory).is_err() {
+        if !complete(&directory) {
+            let _ = fs::remove_dir_all(&directory);
+            let _ = fs::rename(&staging, &directory);
+        }
         let _ = fs::remove_dir_all(&staging);
     }
     assert!(
