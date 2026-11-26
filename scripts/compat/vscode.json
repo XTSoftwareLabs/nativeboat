@@ -11,6 +11,14 @@
   "documents": [
     "src/vs/workbench/contrib/webview/browser/pre/*.html"
   ],
+  "scripts": [
+    { "path": "extensions/markdown-language-features/media/index.js", "source": "extensions/markdown-language-features/preview-src/index.ts" },
+    { "path": "extensions/markdown-language-features/media/pre.js", "source": "extensions/markdown-language-features/preview-src/pre.ts" },
+    { "path": "extensions/simple-browser/media/index.js", "source": "extensions/simple-browser/preview-src/index.ts" },
+    "extensions/media-preview/media/imagePreview.js",
+    "extensions/media-preview/media/audioPreview.js",
+    "extensions/media-preview/media/videoPreview.js"
+  ],
   "forks": [
     "extensions/markdown-language-features/node_modules/vscode-markdown-languageserver/dist/node/workerMain"
   ]
