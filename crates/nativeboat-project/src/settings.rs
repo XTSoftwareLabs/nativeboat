@@ -15,6 +15,9 @@ pub struct Settings {
     /// Folder globs of the plugin packages the program loads by path while
     /// it runs (see [`crate::plugins`]).
     pub plugins: Option<Vec<String>>,
+    /// File globs of the HTML documents the program shows in frames
+    /// without naming them in its pages (see [`crate::documents`]).
+    pub documents: Option<Vec<String>>,
     /// The settings the file gives that this NativeBoat does not know.
     pub unknown: Vec<String>,
 }
@@ -48,6 +51,13 @@ impl Settings {
                         )
                     })?)
                 }
+                "documents" => settings.documents =
+                    Some(crate::plugins::patterns(&value).ok_or_else(|| {
+                        format!(
+                            "\"documents\" in the settings file {} must be a list of file globs",
+                            path.display()
+                        )
+                    })?),
                 // Editors use it to find a schema for the file.
                 "$schema" => {}
                 _ => settings.unknown.push(key),

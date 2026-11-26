@@ -1724,7 +1724,8 @@ native_sources!(
     "web/history.rs",
     "web/media.rs",
     "web/page.rs",
-    "worker.rs"
+    "worker.rs",
+    "frame.rs"
 );
 
 // The generated application toolchain cannot run Cargo or fetch crates. Keep
@@ -5123,6 +5124,9 @@ unsafe fn _nativeboat_print(context: *mut ::core::ffi::c_void, window: usize, re
             "type _NativeBoatPage = (usize, ::alloc::rc::Rc<::nativeboat_page::DocumentPage>, ::core::cell::Cell<Option<(u64, u64)>>);\nlet mut _nativeboat_native_pages: ::alloc::vec::Vec<_NativeBoatPage> = ::alloc::vec::Vec::new();\nlet mut _nativeboat_page_windows: ::alloc::vec::Vec<(usize, ::alloc::rc::Rc<::nativeboat_page::PageWindow>)> = ::alloc::vec::Vec::new();\nlet _nativeboat_page_handler = ::nativeboat_page::PageWindows::default();\n",
         );
     }
+    if has_renderer_layout {
+        source.push_str(&frame_documents_source(project, compilation));
+    }
     let declarations = source;
     let mut source = String::new();
     source.push_str(
@@ -5184,7 +5188,7 @@ unsafe fn _nativeboat_print(context: *mut ::core::ffi::c_void, window: usize, re
                     .unwrap_or_default();
                 (
                     format!(
-                        "let renderer_global = Value::Object(renderer_realm.global_object());\n            let location = ::nativeboat_native::ops::get(&mut renderer_realm, &renderer_global, &::nativeboat_native::Key::name(\"location\")).expect(\"renderer location is installed\");\n            let href = ::nativeboat_native::ops::get(&mut renderer_realm, &location, &::nativeboat_native::Key::name(\"href\")).expect(\"renderer location has href\");\n            let page_url = ::nativeboat_native::ops::to_string(&mut renderer_realm, &href).expect(\"renderer location href is a string\").to_rust_lossy();\n            let page_view = ::alloc::rc::Rc::new(::nativeboat_page::DocumentPage::new(::alloc::rc::Rc::new(::nativeboat_native::web::BlankPage {{ url: page_url, viewport: ::nativeboat_native::app_host::client_size(::nativeboat_native::app_host::Window::from_raw(window)).unwrap_or((800.0, 600.0)) }}), _nativeboat_measurer(window, renderer_realm.electron_version)));\n            if let Some(storage) = ::nativeboat_native::electron_builtin::page_storage_file(&mut realm) {{ page_view.set_storage_file(storage); }}\n            let web_document = renderer_realm.install_web({html:?}, page_view.clone());\n            page_view.set_document(web_document);\n            renderer_realm.set_worker_scope(|realm| renderer_{index}::module_entries(realm, &[0]).map(drop));\n            "
+                        "let renderer_global = Value::Object(renderer_realm.global_object());\n            let location = ::nativeboat_native::ops::get(&mut renderer_realm, &renderer_global, &::nativeboat_native::Key::name(\"location\")).expect(\"renderer location is installed\");\n            let href = ::nativeboat_native::ops::get(&mut renderer_realm, &location, &::nativeboat_native::Key::name(\"href\")).expect(\"renderer location has href\");\n            let page_url = ::nativeboat_native::ops::to_string(&mut renderer_realm, &href).expect(\"renderer location href is a string\").to_rust_lossy();\n            let page_view = ::alloc::rc::Rc::new(::nativeboat_page::DocumentPage::new(::alloc::rc::Rc::new(::nativeboat_native::web::BlankPage {{ url: page_url, viewport: ::nativeboat_native::app_host::client_size(::nativeboat_native::app_host::Window::from_raw(window)).unwrap_or((800.0, 600.0)) }}), _nativeboat_measurer(window, renderer_realm.electron_version)));\n            if let Some(storage) = ::nativeboat_native::electron_builtin::page_storage_file(&mut realm) {{ page_view.set_storage_file(storage); }}\n            let web_document = renderer_realm.install_web({html:?}, page_view.clone());\n            page_view.set_document(web_document);\n            renderer_realm.set_worker_scope(|realm| renderer_{index}::module_entries(realm, &[0]).map(drop));\n            renderer_realm.set_frame_documents(&_NATIVEBOAT_FRAME_DOCUMENTS, _nativeboat_frame_page);\n            "
                     ),
                     "if let Err(thrown) = renderer_realm.web_call(\"ready\", &[]) { renderer_realm.queue_host_error(thrown); }\n            ",
                 )
@@ -5211,6 +5215,58 @@ unsafe fn _nativeboat_print(context: *mut ::core::ffi::c_void, window: usize, re
         String::new()
     };
     (declarations, source, after)
+}
+
+/// The documents frames may show, every page the build compiled, found by
+/// the same paths as a window's page; and the function that makes a
+/// frame's page in its realm.
+fn frame_documents_source(project: &Project, compilation: &NativeCompilation) -> String {
+    use std::fmt::Write as _;
+    let mut documents = Vec::new();
+    for (index, context) in compilation.renderers.iter().enumerate() {
+        for page_source in &context.pages {
+            let Some(page) = project
+                .pages
+                .iter()
+                .find(|page| page.source == *page_source)
+            else {
+                continue;
+            };
+            let Ok(html) = std::fs::read_to_string(&page.source) else {
+                continue;
+            };
+            let mut paths: Vec<String> = page
+                .runtime_paths
+                .iter()
+                .map(|path| path.replace('\\', "/").to_ascii_lowercase())
+                .collect();
+            if let Ok(relative) = page.source.strip_prefix(&project.root) {
+                paths.push(
+                    relative
+                        .to_string_lossy()
+                        .replace('\\', "/")
+                        .to_ascii_lowercase(),
+                );
+            }
+            if let Some(name) = page.source.file_name().and_then(|name| name.to_str()) {
+                paths.push(format!("/{}", name.to_ascii_lowercase()));
+            }
+            paths.sort();
+            paths.dedup();
+            documents.push(format!(
+                "::nativeboat_native::frame::FrameDocument {{ paths: &{paths:?}, html: {html:?}, scope: |realm| renderer_{index}::module_entries(realm, &[0]).map(drop), initialize: |realm| renderer_{index}::initialize(realm).map(drop) }}"
+            ));
+        }
+    }
+    let mut source = String::new();
+    let _ = writeln!(
+        source,
+        "static _NATIVEBOAT_FRAME_DOCUMENTS: [::nativeboat_native::frame::FrameDocument; {}] = [{}];",
+        documents.len(),
+        documents.join(", ")
+    );
+    source.push_str("fn _nativeboat_frame_page(realm: &mut Realm, url: &str, html: &str, viewport: (f32, f32), window: usize) {\n    let page_view = ::alloc::rc::Rc::new(::nativeboat_page::DocumentPage::new(::alloc::rc::Rc::new(::nativeboat_native::web::BlankPage { url: url.into(), viewport }), _nativeboat_measurer(window, realm.electron_version)));\n    let web_document = realm.install_web(html, page_view.clone());\n    page_view.set_document(web_document);\n}\n");
+    source
 }
 
 /// Lowers a page's static body to Rust node specs so generated applications

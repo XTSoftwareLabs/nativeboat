@@ -92,3 +92,30 @@ jobs:
             LICENSE
             THIRD-PARTY-NOTICES.md
             THIRD-PARTY-LICENSES.txt
+
+  # Runs the tests that build and run applications with the packaged
+  # toolchain the release job made, whose renderer libraries give pages the
+  # web platform.
+  renderer:
+    needs: release
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+      - name: Pinned Rust version
+        id: rust
+        shell: pwsh
+        run: '"version=$((Get-Content scripts/toolchain-version.txt -Raw).Trim())" >> $env:GITHUB_OUTPUT'
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.rust.outputs.version }}
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/download-artifact@v4
+        with:
+          name: nativeboat-windows-x64
+          path: target/packaged
+      - name: Renderer tests
+        shell: pwsh
+        run: |
+          $env:NATIVEBOAT_RENDERER_TOOLCHAIN = (Resolve-Path target/packaged/target/release/toolchain).Path
+          cargo test -p nativeboat-cli --lib -- --ignored --test-threads=1

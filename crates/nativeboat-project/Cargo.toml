@@ -9,6 +9,7 @@ repository.workspace = true
 
 [dependencies]
 nativeboat-bundler.workspace = true
+nativeboat-html.workspace = true
 oxc.workspace = true
 serde.workspace = true
 serde_json.workspace = true

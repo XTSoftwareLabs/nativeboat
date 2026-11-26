@@ -28,6 +28,13 @@ pub(crate) struct Worker {
     realm: Box<Realm>,
 }
 
+impl Worker {
+    /// A worker, or a frame, with its realm.
+    pub(crate) fn new(id: u32, realm: Box<Realm>) -> Worker {
+        Worker { id, realm }
+    }
+}
+
 impl core::fmt::Debug for Worker {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         formatter
@@ -107,7 +114,7 @@ pub(crate) fn start(
     // Exceptions reach the worker's `error` handlers and its page, as the
     // prelude's `host.onerror` reports them; the worker keeps running.
     let _ = realm.start_host(scope);
-    page.workers.push(Worker { id, realm });
+    page.workers.push(Worker::new(id, realm));
     Ok(id)
 }
 

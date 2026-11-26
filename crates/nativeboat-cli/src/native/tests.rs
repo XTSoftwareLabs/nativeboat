@@ -8411,6 +8411,89 @@ fibWorker.onmessage = (event) => { window.native.log(`function ${event.data.valu
     );
 }
 
+/// A page's `<iframe>` shows a compiled document in a realm of its own:
+/// the frame's inline script runs, the element gets `load`, and the two
+/// windows exchange messages with their sources and transferred ports.
+#[test]
+#[ignore = "requires NATIVEBOAT_RENDERER_TOOLCHAIN with packaged renderer libraries"]
+fn page_frames_run_their_documents_and_exchange_messages() {
+    let sysroot = PathBuf::from(std::env::var_os("NATIVEBOAT_RENDERER_TOOLCHAIN").unwrap());
+    assert!(sysroot.join("renderer-libs").is_dir());
+    let fixture = Fixture::new(&[
+        (
+            "package.json",
+            r#"{"name":"native-frames","type":"module","main":"main.ts","devDependencies":{"electron":"44"}}"#,
+        ),
+        (
+            "main.ts",
+            r#"import { app, BrowserWindow, ipcMain } from 'electron';
+const window = new BrowserWindow({ show: false, webPreferences: { preload: './preload.js' } });
+const lines: string[] = [];
+ipcMain.on('log', (_event, text) => {
+  lines.push(text);
+  if (lines.length === 4) { console.log(lines.sort().join('\n')); app.quit(); }
+});
+window.loadFile('index.html');
+setTimeout(() => { console.log('timeout', lines.join('|')); app.quit(); }, 10000);"#,
+        ),
+        (
+            "preload.js",
+            "const { ipcRenderer, contextBridge } = require('electron');\n\
+             contextBridge.exposeInMainWorld('native', { log: (text) => ipcRenderer.send('log', text) });",
+        ),
+        (
+            "index.html",
+            "<!doctype html><html><body><iframe id='f' src='frame.html'></iframe><script type='module' src='./renderer.js'></script></body></html>",
+        ),
+        (
+            "renderer.js",
+            r#"const frame = document.getElementById('f');
+window.addEventListener('message', (event) => {
+  window.native.log(`page got ${event.data} from frame ${event.source === frame.contentWindow} ${event.ports.length}`);
+  if (event.ports.length) event.ports[0].postMessage('over port');
+});
+frame.addEventListener('load', () => {
+  window.native.log(`frame load ${frame.contentWindow !== null}`);
+  frame.contentWindow.postMessage('hello frame', '*');
+});"#,
+        ),
+        (
+            "frame.html",
+            "<!doctype html><html><body><script>\n\
+             window.addEventListener('message', (event) => {\n\
+               parent.postMessage(`frame got ${event.data} ${event.source === parent}`, '*');\n\
+               const channel = new MessageChannel();\n\
+               channel.port1.onmessage = (message) => parent.postMessage(`port ${message.data}`, '*');\n\
+               parent.postMessage('with port', '*', [channel.port2]);\n\
+             });\n\
+             </script></body></html>",
+        ),
+    ]);
+    let mut session = shimforge::Session::new();
+    let select = shimforge::mock!(
+        session,
+        select_toolchain,
+        fn(Option<&Path>, &Path) -> Toolchain
+    );
+    select.expect().returning(move |_, _| Toolchain {
+        rustc: sysroot.join("bin/rustc.exe"),
+        sysroot: Some(sysroot.clone()),
+    });
+    let (code, out, err) = run(&fixture, &["--out", "native-output"]);
+    assert_eq!(code, 0, "{out}{err}");
+    let executed = Command::new(fixture.path("native-output/native-frames.exe"))
+        .output()
+        .unwrap();
+    assert!(executed.status.success(), "{executed:?}");
+    assert_eq!(
+        String::from_utf8_lossy(&executed.stdout),
+        "frame load true\n\
+         page got frame got hello frame true from frame true 0\n\
+         page got port over port from frame true 0\n\
+         page got with port from frame true 1\n"
+    );
+}
+
 /// A compiled page defines custom elements: `document.createElement` and
 /// `new` construct them, a definition upgrades the elements the page already
 /// has, its callbacks follow insertions, moves, removals and observed

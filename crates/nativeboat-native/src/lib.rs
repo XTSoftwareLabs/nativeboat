@@ -147,6 +147,8 @@ pub mod woff;
 mod work_queue;
 #[cfg(feature = "dom")]
 pub mod worker;
+#[cfg(feature = "dom")]
+pub mod frame;
 mod zlib_builtin;
 
 pub use encoding::base64_encode;

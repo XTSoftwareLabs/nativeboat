@@ -21,6 +21,7 @@ const PARTS: &[crate::Text] = &[
     nativeboat_conceal::text!("../../nativeboat-web/src/js/canvas.js"),
     nativeboat_conceal::text!("../../nativeboat-web/src/js/xhr.js"),
     nativeboat_conceal::text!("../../nativeboat-web/src/js/window.js"),
+    nativeboat_conceal::text!("../../nativeboat-web/src/js/frames.js"),
     nativeboat_conceal::text!("../../nativeboat-web/src/js/editing.js"),
     nativeboat_conceal::text!("../../nativeboat-web/src/js/composition.js"),
     nativeboat_conceal::text!("../../nativeboat-web/src/js/editing-history.js"),

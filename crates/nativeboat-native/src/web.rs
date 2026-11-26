@@ -322,6 +322,14 @@ fn host(realm: &Realm) -> Object {
         )?;
         Ok(Value::Number(f64::from(id)))
     });
+    // Frames: a realm for each document an `<iframe>` shows, which the
+    // page steps after itself as it steps its workers; 0 for none.
+    let start_frame = realm.function("startFrame", 4, false, |realm, _, args| {
+        let width = ops::to_number(realm, arg(args, 2))? as f32;
+        let height = ops::to_number(realm, arg(args, 3))? as f32;
+        let id = crate::frame::start(realm, arg(args, 0), arg(args, 1), (width, height))?;
+        Ok(Value::Number(f64::from(id)))
+    });
     let terminate_worker = realm.function("terminateWorker", 1, false, |realm, _, args| {
         let id = ops::to_number(realm, arg(args, 0))?;
         crate::worker::terminate(realm, id as u32);
@@ -329,7 +337,10 @@ fn host(realm: &Realm) -> Object {
     });
     for (name, function) in [
         ("startWorker", start_worker),
+        // Frames end as workers do.
+        ("endFrame", terminate_worker.clone()),
         ("terminateWorker", terminate_worker),
+        ("startFrame", start_frame),
         ("messageChannel", message_channel),
         ("notify", notify),
         ("closeNotification", close_notification),

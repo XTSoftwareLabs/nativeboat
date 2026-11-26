@@ -289,6 +289,12 @@ pub struct Realm {
     /// Whether this worker's realm closed itself, so its page ends it.
     #[cfg(feature = "dom")]
     pub(crate) worker_closing: bool,
+    /// The documents the build compiled that this page's frames may show.
+    #[cfg(feature = "dom")]
+    pub(crate) frame_documents: &'static [crate::frame::FrameDocument],
+    /// Makes the page of a frame's realm.
+    #[cfg(feature = "dom")]
+    pub(crate) frame_page: Option<crate::frame::FramePage>,
     /// `TypeError.prototype`.
     pub type_error_prototype: Object,
     /// `RangeError.prototype`.
@@ -856,6 +862,10 @@ impl Realm {
             next_worker: 0,
             #[cfg(feature = "dom")]
             worker_closing: false,
+            #[cfg(feature = "dom")]
+            frame_documents: &[],
+            #[cfg(feature = "dom")]
+            frame_page: None,
             type_error_prototype,
             range_error_prototype,
             reference_error_prototype,

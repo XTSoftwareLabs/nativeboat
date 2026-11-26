@@ -8,6 +8,7 @@
 
 pub mod builder;
 pub mod config;
+pub mod documents;
 mod electron_vite;
 mod glob;
 pub mod install;
@@ -759,6 +760,13 @@ fn load_package(
             add_entry(&mut forks, found);
         }
     }
+    // Documents the pages show in frames are compiled as pages are.
+    let document_patterns = settings.documents.clone().or_else(|| {
+        package["nativeboat"]
+            .get("documents")
+            .and_then(plugins::patterns)
+    });
+    documents::add_frames(root, &mut pages, document_patterns.as_deref());
     // Applications without windows, such as tray applications and
     // programs, have no pages to find.
     if pages.is_empty() && scan.opens_windows {
