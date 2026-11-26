@@ -4592,18 +4592,20 @@ fn context_library_source(
 /// Copies configured Electron `extraFiles` and `extraResources` beside the
 /// generated executable. The project loader has already expanded directory
 /// globs, so each entry must be a regular file with a relative destination.
-/// Plugin modules are compiled into the executable. A file at each plugin's
-/// emitted main path lets the program find and resolve it as it would the
-/// file its package's build makes, and the other files of a TypeScript
-/// plugin's source folder (scripts, data) go to the folder it emits to.
+/// Plugin modules and forked modules are compiled into the executable. A
+/// file at each plugin's emitted main path and each forked module's path
+/// lets the program find and resolve it as it would the file its package's
+/// build makes, and the other files of a TypeScript plugin's source folder
+/// (scripts, data) go to the folder it emits to.
 fn write_plugin_files(
     project: &Project,
     compilation: &NativeCompilation,
     output: &Path,
 ) -> Result<(), String> {
-    // Plugin mains, and the modules (such as an installed package's) that
-    // import what the program serves, have files at their paths, which
-    // programs resolve the real paths of.
+    // Plugin mains, forked modules, and the modules (such as an installed
+    // package's) that import what the program serves, have files at their
+    // paths, which programs resolve the real paths of or check exist before
+    // they fork them.
     let host_importers = compilation
         .main
         .iter()
@@ -4611,7 +4613,8 @@ fn write_plugin_files(
     let mains = project
         .plugins
         .iter()
-        .filter_map(|plugin| plugin.runtime_paths.first());
+        .chain(&project.forks)
+        .filter_map(|entry| entry.runtime_paths.first());
     for path in mains.chain(host_importers) {
         let file = output.join(path);
         if !file.exists() {
