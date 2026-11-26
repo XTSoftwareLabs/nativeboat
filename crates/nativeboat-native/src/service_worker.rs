@@ -67,16 +67,19 @@ pub(crate) fn register(page: &mut Realm, script: &Value, scope: &Value) -> Resul
     {
         return Ok(known.id);
     }
-    let realm = crate::worker::start_service(page, &script, &scope)?;
     let id = REGISTRY.next.get() + 1;
     REGISTRY.next.set(id);
-    REGISTRY.registrations.borrow_mut().push(Registration {
-        id,
-        scope,
-        script,
-        state: String::from("parsed"),
-        realm,
-    });
+    // Registered before its script runs, which reports the states it
+    // reaches.
+    crate::worker::start_service(page, &script.clone(), &scope.clone(), |realm| {
+        REGISTRY.registrations.borrow_mut().push(Registration {
+            id,
+            scope,
+            script,
+            state: String::from("parsed"),
+            realm,
+        });
+    })?;
     Ok(id)
 }
 

@@ -1183,8 +1183,11 @@ class FetchEvent extends FetchEventBase {
 }
 Object.defineProperty(FetchEvent, 'name', { value: 'FetchEvent' });
 
-// The pages connected to this worker, by client id.
+// The pages connected to this worker, by client id; whether the worker
+// claimed them, which also claims the pages of its scope that connect
+// later, as they were its clients before.
 const clientsById = new Map();
+let claimed = false;
 class Client {
   constructor() {
     illegal();
@@ -1251,6 +1254,7 @@ class Clients {
     if (serviceState !== 'activating' && serviceState !== 'activated') {
       return Promise.reject(invalidState("Failed to execute 'claim' on 'Clients': Only the active worker can claim clients."));
     }
+    claimed = true;
     for (const client of clientsById.values()) {
       if (client[CLIENT].controlled) continue;
       client[CLIENT].controlled = true;
@@ -1459,6 +1463,10 @@ const serviceClient = (handle, id, clientURL, type) => {
         case 'hello':
           client[CLIENT].controlled = !!data.controlled;
           handle.postMessage({ kind: 'state', state: serviceState });
+          if (claimed && !client[CLIENT].controlled) {
+            client[CLIENT].controlled = true;
+            handle.postMessage({ kind: 'claim' });
+          }
           return;
         case 'message': {
           let origin = 'null';
@@ -1480,7 +1488,7 @@ const serviceClient = (handle, id, clientURL, type) => {
   });
 };
 
-if (service !== null) {
+if (service != null) {
   Object.setPrototypeOf(global, ServiceWorkerGlobalScope.prototype);
   for (const [key, value] of Object.entries({
     caches,
@@ -1508,10 +1516,10 @@ if (service !== null) {
     if (script === null) await host.import(url);
     else await evaluate(script);
   } finally {
-    if (service === null) listen();
+    if (service == null) listen();
   }
-  if (service !== null) await serviceLifecycle();
+  if (service != null) await serviceLifecycle();
 })().catch((error) => {
-  if (service !== null) serviceStateIs('redundant');
+  if (service != null) serviceStateIs('redundant');
   reportError(error);
 });

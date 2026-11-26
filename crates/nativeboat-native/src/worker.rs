@@ -104,6 +104,7 @@ pub(crate) fn start(
         Value::String(url),
         Value::String(name),
         script,
+        Value::Null,
     ]);
     realm.global_object().define(
         Key::name(PRELUDE_ARGUMENTS),
@@ -119,10 +120,15 @@ pub(crate) fn start(
 }
 
 /// Starts the service worker `script` for `scope` in a realm of its own,
-/// which `page` steps as it steps its workers, and returns the realm's
-/// address. Its prelude takes no ports: pages connect to it (see
-/// [`crate::service_worker`]).
-pub(crate) fn start_service(page: &mut Realm, script: &str, scope: &str) -> Result<usize, Thrown> {
+/// which `page` steps as it steps its workers. `registered` gets the
+/// realm's address before the worker's script runs. Its prelude takes no
+/// ports: pages connect to it (see [`crate::service_worker`]).
+pub(crate) fn start_service(
+    page: &mut Realm,
+    script: &str,
+    scope: &str,
+    registered: impl FnOnce(usize),
+) -> Result<(), Thrown> {
     let Some(scope_prelude) = page.worker_scope else {
         return Err(page.throw(
             ErrorKind::Type,
@@ -152,10 +158,10 @@ pub(crate) fn start_service(page: &mut Realm, script: &str, scope: &str) -> Resu
     );
     page.next_worker += 1;
     let id = page.next_worker;
-    let address = &*realm as *const Realm as usize;
+    registered(&*realm as *const Realm as usize);
     let _ = realm.start_host(scope_prelude);
     page.workers.push(Worker::new(id, realm));
-    Ok(address)
+    Ok(())
 }
 
 /// Ends the worker `id` of `page`, as `worker.terminate()` does: its realm
