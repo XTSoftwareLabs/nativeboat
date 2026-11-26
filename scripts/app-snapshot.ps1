@@ -1,5 +1,5 @@
-# Launches a MarkText build with an isolated profile, waits, saves a window
-# screenshot and the process output, then ends the process tree.
+# Launches a built application with an isolated profile, waits, saves a
+# window screenshot and the process output, then ends the process.
 param(
     [Parameter(Mandatory)][string]$Executable,
     [Parameter(Mandatory)][string]$OutputDirectory,

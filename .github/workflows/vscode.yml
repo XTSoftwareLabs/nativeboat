@@ -1,0 +1,83 @@
+name: VS Code
+
+# Builds VS Code with this checkout's nativeboat release package, runs it and
+# keeps its window snapshot, logs and compatibility report as the
+# `vscode-result` artifact. A full build compiles about 600 generated crates,
+# longer than a job may run, so it runs in up to four jobs that resume from
+# the generated-crate cache.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: VS Code tag or branch
+        default: '1.145.0'
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: vscode-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  toolchain:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+      - name: Rust version
+        id: rust
+        shell: pwsh
+        run: |
+          $version = (Get-Content scripts/toolchain-version.txt -Raw).Trim()
+          "version=$version" >> $env:GITHUB_OUTPUT
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.rust.outputs.version }}
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Build the release package
+        shell: pwsh
+        run: ./scripts/build-release.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nativeboat
+          path: target/release-package/*/nativeboat-*-windows-x64.zip
+          retention-days: 3
+
+  build-1:
+    needs: toolchain
+    uses: ./.github/workflows/vscode-build.yml
+    with:
+      ref: ${{ inputs.ref }}
+      stage: 1
+  build-2:
+    needs: build-1
+    if: needs.build-1.outputs.state == 'partial'
+    uses: ./.github/workflows/vscode-build.yml
+    with:
+      ref: ${{ inputs.ref }}
+      stage: 2
+  build-3:
+    needs: build-2
+    if: needs.build-2.outputs.state == 'partial'
+    uses: ./.github/workflows/vscode-build.yml
+    with:
+      ref: ${{ inputs.ref }}
+      stage: 3
+  build-4:
+    needs: build-3
+    if: needs.build-3.outputs.state == 'partial'
+    uses: ./.github/workflows/vscode-build.yml
+    with:
+      ref: ${{ inputs.ref }}
+      stage: 4
