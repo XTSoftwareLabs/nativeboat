@@ -148,6 +148,14 @@ unsafe extern "system" {
     ) -> i32;
     fn WSAEventSelect(socket: Socket, event: Handle, events: i32) -> i32;
     fn WSAGetLastError() -> i32;
+    fn WSALookupServiceBeginW(query: *const QuerySet, flags: u32, lookup: *mut Handle) -> i32;
+    fn WSALookupServiceNextW(
+        lookup: Handle,
+        flags: u32,
+        length: *mut u32,
+        results: *mut QuerySet,
+    ) -> i32;
+    fn WSALookupServiceEnd(lookup: Handle) -> i32;
     fn InetNtopW(family: i32, address: *const u8, buffer: *mut u16, size: usize) -> *const u16;
 }
 
@@ -169,6 +177,72 @@ fn wide(text: &str) -> Vec<u16> {
 fn last_error() -> i32 {
     // SAFETY: reads this thread's latest Winsock error.
     unsafe { WSAGetLastError() }
+}
+
+/// Winsock's `WSAQUERYSETW`.
+#[repr(C)]
+struct QuerySet {
+    size: u32,
+    instance_name: *mut u16,
+    service_class: *const Guid,
+    version: *mut c_void,
+    comment: *mut u16,
+    name_space: u32,
+    provider: *const Guid,
+    context: *mut u16,
+    protocol_count: u32,
+    protocols: *mut c_void,
+    query: *mut u16,
+    address_count: u32,
+    addresses: *mut c_void,
+    output_flags: u32,
+    blob: *mut c_void,
+}
+
+#[repr(C)]
+struct Guid(u32, u16, u16, [u8; 8]);
+
+/// Whether a network is connected, as Chromium decides for Electron's
+/// `net.isOnline()` on Windows: Network Location Awareness lists at least
+/// one network.
+pub(crate) fn is_online() -> bool {
+    const NS_NLA: u32 = 15;
+    const LUP_RETURN_ALL: u32 = 0x0FF0;
+    const WSAEFAULT: i32 = 10014;
+    const NLA_SERVICE_CLASS: Guid = Guid(
+        0x0037_e515,
+        0xb5c9,
+        0x4a43,
+        [0xba, 0xda, 0x8b, 0x48, 0xa8, 0x7a, 0xd2, 0x39],
+    );
+    if startup().is_err() {
+        return false;
+    }
+    // SAFETY: an all-zero WSAQUERYSETW is valid: null pointers and counts.
+    let mut query: QuerySet = unsafe { core::mem::zeroed() };
+    query.size = core::mem::size_of::<QuerySet>() as u32;
+    query.service_class = &NLA_SERVICE_CLASS;
+    query.name_space = NS_NLA;
+    let mut lookup: Handle = core::ptr::null_mut();
+    // SAFETY: the query and the class it points to outlive the call.
+    if unsafe { WSALookupServiceBeginW(&query, LUP_RETURN_ALL, &mut lookup) } != 0 {
+        return false;
+    }
+    // The first network is enough: one too large for the buffer also
+    // counts, as the error says a result was there.
+    let mut buffer = [0u64; 64];
+    let results = buffer.as_mut_ptr().cast::<QuerySet>();
+    let mut length = core::mem::size_of_val(&buffer) as u32;
+    // SAFETY: the buffer is aligned for and larger than WSAQUERYSETW, and
+    // `length` is its size.
+    let found = unsafe {
+        (*results).size = core::mem::size_of::<QuerySet>() as u32;
+        WSALookupServiceNextW(lookup, LUP_RETURN_ALL, &mut length, results) == 0
+            || last_error() == WSAEFAULT
+    };
+    // SAFETY: the lookup was begun above.
+    unsafe { WSALookupServiceEnd(lookup) };
+    found
 }
 
 fn startup() -> Result<(), i32> {

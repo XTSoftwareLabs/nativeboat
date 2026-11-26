@@ -704,6 +704,25 @@ fn net(realm: &Realm) -> Object {
         ops::call(realm, &create, Value::Undefined, &[options, callback, agent])
     });
     net.define(Key::name("request"), Property::data(Value::Object(request)));
+    // isOnline() and the `online` property: whether a network is connected.
+    let online = realm.function("isOnline", 0, false, |_, _, _| {
+        Ok(Value::Boolean(crate::tcp_binding::is_online()))
+    });
+    net.define(
+        Key::name("isOnline"),
+        Property::data(Value::Object(online.clone())),
+    );
+    net.define(
+        Key::name("online"),
+        Property {
+            slot: crate::Slot::Accessor {
+                get: Some(online),
+                set: None,
+            },
+            enumerable: true,
+            configurable: true,
+        },
+    );
     net
 }
 
