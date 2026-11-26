@@ -58,26 +58,28 @@ pub struct PageWindow {
     parent: Option<alloc::rc::Weak<PageWindow>>,
 }
 
-thread_local! {
-    /// Every page's window and frame's window, so that a frame finds the
-    /// page it is in and input finds the window it arrived at.
-    static WINDOWS: RefCell<Vec<alloc::rc::Weak<PageWindow>>> = const { RefCell::new(Vec::new()) };
-}
+/// Every page's window and frame's window, so that a frame finds the page
+/// it is in and input finds the window it arrived at.
+struct Registry(RefCell<Vec<alloc::rc::Weak<PageWindow>>>);
+
+// SAFETY: page windows are made and used only on the thread that runs the
+// application's windows, which alone touches the registry.
+unsafe impl Sync for Registry {}
+
+static WINDOWS: Registry = Registry(RefCell::new(Vec::new()));
 
 fn registered(found: impl Fn(&PageWindow) -> bool) -> Option<Rc<PageWindow>> {
-    WINDOWS.with_borrow(|windows| {
-        windows
-            .iter()
-            .filter_map(alloc::rc::Weak::upgrade)
-            .find(|window| found(window))
-    })
+    let windows = WINDOWS.0.borrow();
+    windows
+        .iter()
+        .filter_map(alloc::rc::Weak::upgrade)
+        .find(|window| found(window))
 }
 
 fn register(window: &Rc<PageWindow>) {
-    WINDOWS.with_borrow_mut(|windows| {
-        windows.retain(|known| known.strong_count() > 0);
-        windows.push(Rc::downgrade(window));
-    });
+    let mut windows = WINDOWS.0.borrow_mut();
+    windows.retain(|known| known.strong_count() > 0);
+    windows.push(Rc::downgrade(window));
 }
 
 /// Shows a frame's page, whose scripts run in `realm`, in a window inside
