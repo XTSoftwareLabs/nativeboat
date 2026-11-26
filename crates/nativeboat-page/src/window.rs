@@ -1081,6 +1081,11 @@ impl Handler for PageWindows {
             self.0
                 .borrow_mut()
                 .retain(|candidate| candidate.window != window);
+            WINDOWS.0.borrow_mut().retain(|known| {
+                known
+                    .upgrade()
+                    .is_some_and(|candidate| candidate.window != window)
+            });
             return false;
         }
         let Some(page) = self.get(window) else {
