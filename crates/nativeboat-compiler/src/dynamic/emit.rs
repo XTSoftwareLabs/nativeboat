@@ -2304,6 +2304,12 @@ impl Emitter<'_> {
                 return path_value(path);
             }
             if self.link.create_require_constructors.contains(&call.span) {
+                if self.link.create_require_values.contains(&call.span) {
+                    let parent = self.runtime_filename();
+                    return self.fail(&format!(
+                        "{{ let __parent = {parent}; ::nativeboat_native::modules::require_function(realm, __parent) }}"
+                    ));
+                }
                 return "Value::Undefined".to_owned();
             }
             if let Some(target) = self.link.create_require_calls.get(&call.span) {

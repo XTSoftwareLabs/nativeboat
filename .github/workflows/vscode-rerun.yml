@@ -1,0 +1,50 @@
+name: VS Code rerun
+
+# Runs the VS Code application an earlier VS Code workflow run built
+# (its `vscode-app` artifact) again, with environment variables such as
+# NATIVEBOAT_TRACE_IPC=1 or NATIVEBOAT_PROFILE_CALLS=1, and uploads the
+# snapshot, output and logs as `vscode-result`.
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: VS Code workflow run that built the application
+        required: true
+      environment:
+        description: NAME=VALUE settings separated by semicolons
+        default: ''
+      wait_seconds:
+        description: Seconds to run before the snapshot
+        default: '120'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  run:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      ROOT: D:\nb
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: vscode-app
+          path: ${{ env.ROOT }}\out
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+      - name: Run VS Code
+        shell: pwsh
+        env:
+          SETTINGS: ${{ inputs.environment }}
+          WAIT: ${{ inputs.wait_seconds }}
+        run: |
+          ./scripts/compat/vscode-run.ps1 -Out "$env:ROOT\out" -OutputDirectory "$env:ROOT\result" -Folder $env:GITHUB_WORKSPACE `
+            -WaitSeconds $env:WAIT -Environment ($env:SETTINGS -split ';')
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vscode-result
+          path: ${{ env.ROOT }}\result

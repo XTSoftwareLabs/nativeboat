@@ -1641,6 +1641,16 @@ pub fn require_unlinked(realm: &mut Realm, request: &Value, parent: &Value) -> C
     }
 }
 
+/// The `require` of a module's `createRequire(import.meta.url)` that the
+/// module uses as a value: it requires by name when it runs, as
+/// [`require_unlinked`] does from the module at `parent`.
+pub fn require_function(realm: &mut Realm, parent: Value) -> Completion {
+    let function = realm.function("require", 1, false, move |realm, _, args| {
+        require_unlinked(realm, args.first().unwrap_or(&Value::Undefined), &parent)
+    });
+    Ok(Value::Object(function))
+}
+
 /// Gives a compiled CommonJS module's object the properties of Node's
 /// besides `exports` and `filename`: `id`, `path`, `require`, `loaded`
 /// (true once the module has run), `children` and `paths`.

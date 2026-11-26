@@ -110,6 +110,8 @@ struct Record {
     create_require_request_indexes: HashSet<usize>,
     /// Calls that construct a require function from `node:module`.
     create_require_constructors: HashSet<Span>,
+    /// Those whose binding the module uses as a value.
+    create_require_values: HashSet<Span>,
     /// The functions around lowered `require` calls.
     require_scopes: HashSet<oxc::semantic::ScopeId>,
     /// Static require.resolve calls never load or evaluate their target.
@@ -156,6 +158,10 @@ pub(super) struct Link {
     /// `createRequire(import.meta.url)` calls erased after their require sites
     /// have been linked directly into the project graph.
     pub create_require_constructors: HashSet<Span>,
+    /// Those whose binding the module uses as a value, such as esbuild's
+    /// `__require` wrapper over it: a function that requires by name when
+    /// the application runs.
+    pub create_require_values: HashSet<Span>,
 }
 
 /// The symbols a declaration binds at module level.
@@ -401,6 +407,7 @@ fn scan(path: &Path, text: String, options: &CompileOptions) -> Result<Record, V
         create_require_calls: Vec::new(),
         create_require_request_indexes: HashSet::new(),
         create_require_constructors: HashSet::new(),
+        create_require_values: HashSet::new(),
         require_scopes: HashSet::new(),
         resolutions: Vec::new(),
         locals: Vec::new(),
@@ -624,6 +631,7 @@ fn scan(path: &Path, text: String, options: &CompileOptions) -> Result<Record, V
         }
     }
     let mut created_require_symbols = HashSet::new();
+    let mut constructors_by_symbol = HashMap::new();
     for statement in &program.body {
         let Statement::VariableDeclaration(declaration) = statement else {
             continue;
@@ -657,6 +665,7 @@ fn scan(path: &Path, text: String, options: &CompileOptions) -> Result<Record, V
             }
             let symbol = binding.symbol_id();
             created_require_symbols.insert(symbol);
+            constructors_by_symbol.insert(symbol, call.span);
             record.create_require_constructors.insert(call.span);
         }
     }
@@ -683,9 +692,17 @@ fn scan(path: &Path, text: String, options: &CompileOptions) -> Result<Record, V
         resolutions: Vec::new(),
         constants: static_const_initializers(&program),
         errors: Vec::new(),
+        escaping: HashSet::new(),
+        warnings: Vec::new(),
     };
     created_calls.visit_program(&program);
     record.errors.extend(created_calls.errors);
+    record.warnings.extend(created_calls.warnings);
+    for symbol in &created_calls.escaping {
+        if let Some(span) = constructors_by_symbol.get(symbol) {
+            record.create_require_values.insert(*span);
+        }
+    }
     record.resolutions.extend(created_calls.resolutions);
     record.require_scopes = created_calls.scopes;
     record.optional.extend(created_calls.optional);
@@ -813,6 +830,9 @@ struct CreateRequireCalls<'s, 'p> {
     resolutions: Vec<Resolution>,
     constants: HashMap<SymbolId, &'p Expression<'p>>,
     errors: Vec<Diagnostic>,
+    /// Bindings the module uses as values, beside the calls compiled.
+    escaping: HashSet<SymbolId>,
+    warnings: Vec<Diagnostic>,
 }
 
 impl<'a> Visit<'a> for CreateRequireCalls<'_, '_> {
@@ -923,12 +943,16 @@ impl<'a> Visit<'a> for CreateRequireCalls<'_, '_> {
             .scoping
             .get_reference(reference.reference_id())
             .symbol_id();
-        if symbol.is_some_and(|symbol| {
-            self.requires.contains(&symbol) && !self.allowed_references.contains(&reference.span)
-        }) {
-            self.errors.push(self.source.error(
+        if let Some(symbol) = symbol
+            && self.requires.contains(&symbol)
+            && !self.allowed_references.contains(&reference.span)
+            && self.escaping.insert(symbol)
+        {
+            // Passed on or kept, as esbuild's `__require` wrapper keeps it,
+            // the binding is a function that requires by name.
+            self.warnings.push(self.source.error(
                 reference.span,
-                "createRequire bindings cannot escape statically compiled require calls",
+                "createRequire's require is used as a value here; it requires modules by name when the application runs, and those the build did not compile throw MODULE_NOT_FOUND",
             ));
         }
         walk::walk_identifier_reference(self, reference);
@@ -1191,6 +1215,7 @@ fn placeholder(path: &Path) -> Record {
         create_require_calls: Vec::new(),
         create_require_request_indexes: HashSet::new(),
         create_require_constructors: HashSet::new(),
+        create_require_values: HashSet::new(),
         require_scopes: HashSet::new(),
         resolutions: Vec::new(),
         locals: Vec::new(),
@@ -2791,6 +2816,7 @@ pub(super) fn project(
             create_require_calls,
             missing_requires,
             create_require_constructors: record.create_require_constructors.clone(),
+            create_require_values: record.create_require_values.clone(),
             require_scopes: record.require_scopes.clone(),
         };
         for (local, cell) in &graph.locals[index] {

@@ -57,6 +57,7 @@ fn two_package_layouts_use_production_metadata_and_root_build_configuration() {
         publish: Some(serde_json::json!({"provider":"generic","url":"https://settings.example"})),
         plugins: None,
         documents: None,
+        forks: None,
         unknown: vec!["later".to_owned()],
     };
     let project = crate::load_with(fixture.root(), &settings).unwrap();
