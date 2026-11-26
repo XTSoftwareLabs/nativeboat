@@ -554,3 +554,39 @@ fn plugin_packages_get_their_runtime_dependencies_installed() {
         &project, &shell, &mut out, &mut err
     ));
 }
+
+/// The package around plugin packages, which keeps what they share, gets
+/// its dependencies installed too.
+#[test]
+fn packages_around_plugins_get_their_dependencies_installed() {
+    let fixture = Fixture::new(&[
+        (
+            "app/package.json",
+            r#"{"name":"app","main":"main.js","nativeboat":{"plugins":["plugins/*"]},"devDependencies":{"electron":"30"}}"#,
+        ),
+        ("app/main.js", "console.log('main');"),
+        ("app/node_modules/.bin/npm.cmd", FAKE_MANAGER),
+        (
+            "app/plugins/package.json",
+            r#"{"name":"plugins","private":true,"dependencies":{"left-pad":"1"}}"#,
+        ),
+        ("app/plugins/package-lock.json", "{}"),
+        (
+            "app/plugins/p/package.json",
+            r#"{"name":"p","main":"index.js"}"#,
+        ),
+        ("app/plugins/p/index.js", "module.exports = 1;"),
+    ]);
+    let root = fixture.path("app");
+    let project = nativeboat_project::load(&root).unwrap();
+    let shell = crate::steps::shell();
+    let (mut out, mut err) = (Vec::new(), Vec::new());
+    assert!(install_plugin_dependencies(
+        &project, &shell, &mut out, &mut err
+    ));
+    assert!(
+        root.join("plugins/node_modules/left-pad/package.json")
+            .is_file()
+    );
+    assert!(!root.join("plugins/p/node_modules").exists());
+}

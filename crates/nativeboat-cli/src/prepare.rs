@@ -177,10 +177,12 @@ pub(crate) fn install_missing(
 }
 
 /// Installs the runtime dependencies of plugin packages with a manifest and
-/// lockfile of their own (see `nativeboat_project::plugins`), as a project's
-/// own install script installs them when the native build's install does
-/// not run scripts. Installed folders cost nothing. Returns whether
-/// anything was installed, so the project is read again.
+/// lockfile of their own (see `nativeboat_project::plugins`), and of the
+/// packages around them below the project's folder, where workspaces keep
+/// what their plugins share (VS Code's `extensions/node_modules`), as a
+/// project's own install script installs them when the native build's
+/// install does not run scripts. Installed folders cost nothing. Returns
+/// whether anything was installed, so the project is read again.
 pub(crate) fn install_plugin_dependencies(
     project: &nativeboat_project::Project,
     shell: &Path,
@@ -190,14 +192,15 @@ pub(crate) fn install_plugin_dependencies(
     let folders: BTreeSet<PathBuf> = project
         .plugins
         .iter()
-        .filter_map(|entry| {
+        .flat_map(|entry| {
             entry
                 .source
                 .ancestors()
                 .skip(1)
-                .take_while(|folder| folder.starts_with(&project.root))
-                .find(|folder| folder.join("package.json").is_file())
+                .take_while(|folder| folder.starts_with(&project.root) && *folder != project.root)
+                .filter(|folder| folder.join("package.json").is_file())
                 .map(Path::to_path_buf)
+                .collect::<Vec<_>>()
         })
         .collect();
     let mut installed = false;
