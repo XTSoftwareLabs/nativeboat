@@ -2182,6 +2182,7 @@ fn artifact_fingerprint(path: &Path) -> Result<u64, String> {
 /// A cached folder of libraries by the contents of its rlibs: an entry
 /// pruned and rebuilt at the same path may compile to other bytes, and what
 /// was compiled against the old copy no longer links with the new one.
+#[cfg(any(feature = "embedded-runtime", test))]
 fn libraries_fingerprint(directory: &Path) -> Result<u64, String> {
     let mut libraries: Vec<PathBuf> = std::fs::read_dir(directory)
         .into_iter()
