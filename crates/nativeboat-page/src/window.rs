@@ -319,6 +319,15 @@ impl PageWindow {
 
     /// Brings the window up to date with the page.
     pub fn render(&self) {
+        // A frame's animation frames run as it renders, as the host runs
+        // its pages' before they render.
+        if self.parent.is_some() && !self.busy.get() && self.has_animation_frames() {
+            self.run(|realm| {
+                if let Err(thrown) = realm.web_call("frame", &[]) {
+                    realm.queue_host_error(thrown);
+                }
+            });
+        }
         let now = nativeboat_native::platform::now();
         self.repeat_scrollbar(now);
         self.page.advance_frame(now);
@@ -425,18 +434,24 @@ impl PageWindow {
         nativeboat_native::platform::write_file(path, self.page.describe().as_bytes());
     }
 
+    /// Whether the page's animation frame callbacks wait.
+    fn has_animation_frames(&self) -> bool {
+        // SAFETY: as in `run`.
+        let realm = unsafe { &mut *self.realm };
+        realm
+            .web_call("hasFrames", &[])
+            .is_ok_and(|pending| nativeboat_native::ops::to_boolean(&pending))
+    }
+
     /// Whether the page or the window changed since the last rendering, or
     /// the page's description is out of date: it is written once its second
     /// has passed, so the last state of a page is described too.
     /// Hosts render at most once a frame, and wake for the next frame while
     /// this holds.
     pub fn needs_render(&self) -> bool {
-        if self
-            .frames
-            .borrow()
-            .iter()
-            .any(|(_, frame)| frame.needs_render())
-        {
+        if self.frames.borrow().iter().any(|(_, frame)| {
+            frame.needs_render() || (!frame.busy.get() && frame.has_animation_frames())
+        }) {
             return true;
         }
         let size = self.size();
