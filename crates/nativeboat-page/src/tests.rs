@@ -790,6 +790,21 @@ fn container_rules_apply_by_their_query_containers_size() {
 }
 
 #[test]
+fn container_rules_style_pseudo_elements_of_their_containers() {
+    let (page, dom) = page(
+        "<style>body { margin: 0 } #box { container-type: inline-size; width: 100px }\
+         #box::before { content: ''; display: block; height: 5px }\
+         @container (max-width: 150px) { #box::before { height: 25px } }</style>\
+         <div id='box'><span id='after'>x</span></div>",
+    );
+    let id = |name| dom.borrow().get_element_by_id(Dom::DOCUMENT, name).unwrap();
+    // The pseudo-element's own element is its query container.
+    assert_eq!(page.rect(id("after")).unwrap().y, 25.0);
+    page.set_viewport(400.0, 300.0);
+    assert_eq!(page.rect(id("after")).unwrap().y, 25.0);
+}
+
+#[test]
 fn transitions_present_frame_values_and_report_their_events() {
     let (page, dom) = page("<div id='box'></div>");
     page.extend_stylesheets(vec![
