@@ -1,0 +1,89 @@
+name: VS Code build stage
+
+# One job of the VS Code workflow: restores the generated-crate cache, builds
+# until its time is up, and saves the cache for the next stage. The stage
+# that finishes the build runs VS Code and uploads `vscode-result`.
+on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: true
+      stage:
+        type: number
+        required: true
+    outputs:
+      state:
+        description: built, partial or failed
+        value: ${{ jobs.build.outputs.state }}
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 355
+    outputs:
+      state: ${{ steps.build.outputs.state }}
+    env:
+      NATIVEBOAT_JOBS: 2
+      CACHE_PREFIX: vscode-crates-${{ inputs.ref }}-
+      ROOT: D:\nb
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          name: nativeboat
+          path: ${{ env.ROOT }}\package
+      - name: Prepare
+        shell: pwsh
+        run: |
+          Expand-Archive (Get-ChildItem "$env:ROOT\package" -Filter *.zip).FullName "$env:ROOT\nativeboat"
+          git clone --quiet --depth 1 --branch '${{ inputs.ref }}' https://github.com/microsoft/vscode "$env:ROOT\vscode"
+          Get-PSDrive C, D | Format-Table Name, @{ n = 'FreeGB'; e = { [int]($_.Free / 1GB) } }
+      - uses: actions/cache/restore@v4
+        with:
+          path: ~\AppData\Local\nativeboat\cache
+          key: ${{ env.CACHE_PREFIX }}${{ github.run_id }}-${{ inputs.stage }}
+          restore-keys: ${{ env.CACHE_PREFIX }}
+      - name: Build
+        id: build
+        shell: pwsh
+        run: >
+          ./scripts/compat/vscode-build.ps1 -Nativeboat "$env:ROOT\nativeboat\nativeboat.exe"
+          -Repository "$env:ROOT\vscode" -Work "$env:ROOT\work" -Out "$env:ROOT\out"
+          -Log "$env:ROOT\build-${{ inputs.stage }}.log" -Minutes 285
+      - uses: actions/cache/save@v4
+        if: always() && steps.build.outputs.state != ''
+        with:
+          path: ~\AppData\Local\nativeboat\cache
+          key: ${{ env.CACHE_PREFIX }}${{ github.run_id }}-${{ inputs.stage }}
+      - name: Remove older caches
+        if: always() && steps.build.outputs.state != ''
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $keep = "$env:CACHE_PREFIX${{ github.run_id }}-${{ inputs.stage }}"
+          gh cache list --key $env:CACHE_PREFIX --limit 100 --json id,key | ConvertFrom-Json |
+            Where-Object key -ne $keep | ForEach-Object { gh cache delete $_.id }
+      - name: Run VS Code
+        if: steps.build.outputs.state == 'built'
+        shell: pwsh
+        run: |
+          ./scripts/compat/vscode-run.ps1 -Out "$env:ROOT\out" -OutputDirectory "$env:ROOT\result" -Folder $env:GITHUB_WORKSPACE
+          $copy = Get-ChildItem "$env:ROOT\work" -Directory -Filter 'vscode-*' | Select-Object -First 1
+          & "$env:ROOT\nativeboat\nativeboat.exe" analyze $copy.FullName > "$env:ROOT\result\analyze.txt"
+          Get-Content "$env:ROOT\result\analyze.txt" -TotalCount 20
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.build.outputs.state == 'built'
+        with:
+          name: vscode-result
+          path: ${{ env.ROOT }}\result
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vscode-build-log-${{ inputs.stage }}
+          path: ${{ env.ROOT }}\build-${{ inputs.stage }}.log
+          if-no-files-found: ignore
