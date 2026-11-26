@@ -85,6 +85,10 @@ const receiveWindowMessages = (port, source, loaded) => {
 // started once the element is in the document and again when its `src`
 // changes, and ended when it leaves.
 const frameStates = new Map();
+// A URL's origin, as Chromium gives one to schemes an application
+// registers as standard, such as `app://local`, whose URLs WHATWG parsing
+// leaves opaque.
+const originOf = (url) => (url.origin !== 'null' ? url.origin : url.host ? `${url.protocol}//${url.host}` : 'null');
 const frameURL = (element) => {
   const src = element.getAttribute('src');
   if (src === null || src.trim() === '') return 'about:blank';
@@ -120,7 +124,8 @@ const startFrame = (element) => {
   // A document of this page's origin is reached directly.
   let sameOrigin = false;
   try {
-    sameOrigin = location.origin !== 'null' && new URL(url).origin === location.origin;
+    const mine = originOf(new URL(location.href));
+    sameOrigin = mine !== 'null' && originOf(new URL(url)) === mine;
   } catch {}
   const [id, frameWindow] = host.startFrame(far, url, width, height, idOf(element), sameOrigin);
   state.id = id;
