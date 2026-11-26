@@ -240,6 +240,7 @@ fn deep_recursion_becomes_a_range_error() {
         Kind::Function {
             code: recurse.clone(),
             constructor: false,
+            realm: 0,
         },
     );
     let thrown = realm

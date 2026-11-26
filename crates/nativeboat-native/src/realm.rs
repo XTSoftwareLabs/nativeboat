@@ -295,6 +295,10 @@ pub struct Realm {
     /// Makes the page of a frame's realm.
     #[cfg(feature = "dom")]
     pub(crate) frame_page: Option<crate::frame::FramePage>,
+    /// This realm's id, which the functions it makes keep.
+    pub(crate) id: u32,
+    /// Whether functions made here run here when other realms call them.
+    pub(crate) home: bool,
     /// Ends the page of a frame's realm.
     #[cfg(feature = "dom")]
     pub(crate) frame_end: Option<crate::frame::FrameEnd>,
@@ -352,6 +356,27 @@ pub enum ErrorKind {
 impl Default for Realm {
     fn default() -> Realm {
         Realm::new()
+    }
+}
+
+/// The id the next realm takes; 0 marks functions made by no realm.
+static NEXT_REALM: core::sync::atomic::AtomicU32 = core::sync::atomic::AtomicU32::new(1);
+
+/// The realms that keep their functions home, by id, with their addresses.
+struct Homes(core::cell::RefCell<Vec<(u32, usize)>>);
+
+// SAFETY: realms run on the thread that made them; only that thread, which
+// runs the application's pages and frames, registers or reads them here.
+unsafe impl Sync for Homes {}
+
+static HOMES: Homes = Homes(core::cell::RefCell::new(Vec::new()));
+
+impl Drop for Realm {
+    fn drop(&mut self) {
+        if self.home {
+            let id = self.id;
+            HOMES.0.borrow_mut().retain(|(known, _)| *known != id);
+        }
     }
 }
 
@@ -683,6 +708,33 @@ impl Realm {
         Ok(promise)
     }
 
+    /// Lets the functions made in this realm run in it when another realm
+    /// calls them, as functions keep their realm's globals in browsers:
+    /// frames and their pages hand functions to each other. The realm must
+    /// stay where it is until it is dropped.
+    pub fn keep_functions_home(&mut self) {
+        if self.home {
+            return;
+        }
+        self.home = true;
+        let address = self as *mut Realm as usize;
+        HOMES.0.borrow_mut().push((self.id, address));
+    }
+
+    /// The realm to call a function in from this one: the realm it was made
+    /// in when that one keeps its functions home, else this one.
+    pub(crate) fn home_of(&self, function: &Object) -> Option<*mut Realm> {
+        let home = function.home();
+        if home == 0 || home == self.id {
+            return None;
+        }
+        let homes = HOMES.0.borrow();
+        homes
+            .iter()
+            .find(|(id, _)| *id == home)
+            .map(|(_, address)| *address as *mut Realm)
+    }
+
     /// A realm with the intrinsics compiled behavior relies on, in a new
     /// language agent.
     pub fn new() -> Realm {
@@ -706,6 +758,7 @@ impl Realm {
             Kind::Function {
                 code: Rc::new(|_, _, _| Ok(Value::Undefined)),
                 constructor: false,
+                realm: 0,
             },
         );
         let array_prototype = Object::new(
@@ -869,6 +922,8 @@ impl Realm {
             frame_documents: &[],
             #[cfg(feature = "dom")]
             frame_page: None,
+            id: NEXT_REALM.fetch_add(1, core::sync::atomic::Ordering::Relaxed),
+            home: false,
             #[cfg(feature = "dom")]
             frame_end: None,
             type_error_prototype,
@@ -1003,7 +1058,11 @@ impl Realm {
     ) -> Object {
         let function = Object::new(
             Some(self.function_prototype.clone()),
-            Kind::Function { code, constructor },
+            Kind::Function {
+                code,
+                constructor,
+                realm: self.id,
+            },
         );
         let fixed = |value| Property {
             slot: Slot::Data {

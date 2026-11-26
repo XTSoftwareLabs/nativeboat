@@ -769,6 +769,7 @@ fn deletion_membership_calls_and_construction() {
         Kind::Function {
             code: Rc::new(|_, _, _| Ok(Value::Undefined)),
             constructor: true,
+            realm: 0,
         },
     );
     trap.define(
@@ -780,6 +781,7 @@ fn deletion_membership_calls_and_construction() {
                     Kind::Function {
                         code: getter,
                         constructor: false,
+                        realm: 0,
                     },
                 )),
                 set: None,
