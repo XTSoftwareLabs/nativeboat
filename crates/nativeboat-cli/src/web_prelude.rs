@@ -61,7 +61,9 @@ pub(crate) fn source(path: &Path) -> Option<ModuleSource> {
         "}})(prelude[0], prelude[1], prelude[2]);\n}} else if (globalThis.{WORKER_ARGUMENTS}) {{\nconst worker = globalThis.{WORKER_ARGUMENTS};\ndelete globalThis.{WORKER_ARGUMENTS};\n(function (host, port, errors, url, name, script, service) {{\n'use strict';\n"
     ));
     text.push_str(WORKER());
-    text.push_str("\n})(worker[0], worker[1], worker[2], worker[3], worker[4], worker[5], worker[6]);\n}\n");
+    text.push_str(
+        "\n})(worker[0], worker[1], worker[2], worker[3], worker[4], worker[5], worker[6]);\n}\n",
+    );
     Some(ModuleSource {
         text,
         kind: ModuleKind::CommonJs,

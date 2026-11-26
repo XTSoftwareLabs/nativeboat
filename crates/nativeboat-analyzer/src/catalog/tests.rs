@@ -407,12 +407,7 @@ fn web_apis() {
         "custom-elements",
         "shadow-dom",
     ];
-    let unsupported = [
-        "webgl",
-        "indexeddb",
-        "web-audio",
-        "media-devices",
-    ];
+    let unsupported = ["webgl", "indexeddb", "web-audio", "media-devices"];
     for api in supported {
         assert_eq!(support(web(api)), Supported, "{api}");
     }
