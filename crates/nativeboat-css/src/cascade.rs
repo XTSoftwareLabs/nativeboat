@@ -631,6 +631,37 @@ impl<'a> RuleMap<'a> {
         self.compute_pseudo_style_state(element, pseudo, 0, element_style, environment)
     }
 
+    /// [`RuleMap::compute_pseudo_style`] with the rules the pseudo-element
+    /// matches, as [`RuleMap::matching`] and
+    /// [`RuleMap::matching_conditional`] give them, already known.
+    pub fn compute_pseudo_style_matched<E: Element>(
+        &self,
+        element: &E,
+        pseudo: &PseudoElement,
+        matched: &[(usize, Specificity)],
+        element_style: &ComputedStyle,
+        environment: &StyleEnvironment,
+    ) -> Option<ComputedStyle> {
+        let specified = cascade_state(
+            element,
+            self,
+            Some(matched),
+            &[],
+            &[],
+            Some((pseudo, 0)),
+            &element_style.custom,
+        );
+        if specified.values.is_empty() {
+            return None;
+        }
+        let style = ComputedStyle::compute(&specified, Some(element_style), environment);
+        let generated = matches!(pseudo, PseudoElement::Before | PseudoElement::After);
+        if generated && !matches!(style.content, crate::types::Content::Items(_)) {
+            return None;
+        }
+        Some(style)
+    }
+
     /// Computes a generated part's style with its own interaction and axis state.
     pub fn compute_pseudo_style_state<E: Element>(
         &self,

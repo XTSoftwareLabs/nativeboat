@@ -726,7 +726,9 @@ impl Styles {
                     .map(|part| {
                         let pseudo = part.map(|part| (part, 0));
                         let relational = rules.matching_relational(&element, pseudo);
-                        if !conditional {
+                        // Pseudo-elements query their element too, once its
+                        // style is known, below.
+                        if !conditional || part.is_some() {
                             return relational;
                         }
                         let conditional = rules.matching_conditional(&element, pseudo, &container);
@@ -806,7 +808,44 @@ impl Styles {
             }
             if with_pseudo {
                 for pseudo in parts {
-                    let computed = if let Some(previous) = retained {
+                    let computed = if conditional {
+                        // A pseudo-element's query container may be its own
+                        // element, whose size can change while its style
+                        // keeps its key, so these are matched every time.
+                        let container = |name: Option<&str>| {
+                            let own = style.container_type != ContainerType::Normal
+                                && name.is_none_or(|name| {
+                                    style.container_name.0.iter().any(|known| known == name)
+                                });
+                            if own {
+                                return Some(style.query_size.map_or_else(
+                                    QueryContainer::default,
+                                    |(width, height)| {
+                                        QueryContainer {
+                                            width: Some(width),
+                                            height: (style.container_type == ContainerType::Size)
+                                                .then_some(height),
+                                        }
+                                    },
+                                ));
+                            }
+                            Self::query_container(dom, &styles.elements, node, name)
+                        };
+                        let part = Some((&pseudo, 0));
+                        let matched = merge_matches(
+                            &rules.matching(&element, part),
+                            &rules.matching_conditional(&element, part, &container),
+                        );
+                        rules
+                            .compute_pseudo_style_matched(
+                                &element,
+                                &pseudo,
+                                &matched,
+                                &style,
+                                &environment,
+                            )
+                            .map(Rc::new)
+                    } else if let Some(previous) = retained {
                         previous.pseudo(node, &pseudo).cloned()
                     } else {
                         rules
