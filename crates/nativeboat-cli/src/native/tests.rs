@@ -8593,6 +8593,94 @@ frame.contentWindow.addEventListener('DOMContentLoaded', () => {
     );
 }
 
+/// A page registers a service worker, which installs, activates and claims
+/// it: the page's `fetch()` calls reach the worker's `fetch` event, and the
+/// two exchange messages, the worker seeing the page among its clients.
+#[test]
+#[ignore = "requires NATIVEBOAT_RENDERER_TOOLCHAIN with packaged renderer libraries"]
+fn page_service_workers_answer_the_requests_of_the_pages_they_control() {
+    let sysroot = PathBuf::from(std::env::var_os("NATIVEBOAT_RENDERER_TOOLCHAIN").unwrap());
+    assert!(sysroot.join("renderer-libs").is_dir());
+    let fixture = Fixture::new(&[
+        (
+            "package.json",
+            r#"{"name":"native-service-worker","type":"module","main":"main.ts","devDependencies":{"electron":"44"}}"#,
+        ),
+        (
+            "main.ts",
+            r#"import { app, BrowserWindow, ipcMain, protocol } from 'electron';
+protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true } }]);
+const lines: string[] = [];
+ipcMain.on('log', (_event, text) => {
+  lines.push(text);
+  if (lines.length === 3) { console.log(lines.join('\n')); app.quit(); }
+});
+app.whenReady().then(() => {
+  protocol.handle('app', () => new Response(''));
+  const window = new BrowserWindow({ show: false, webPreferences: { preload: './preload.js' } });
+  window.loadURL('app://local/index.html');
+});
+setTimeout(() => { console.log('timeout', lines.join('|')); app.quit(); }, 10000);"#,
+        ),
+        (
+            "preload.js",
+            "const { ipcRenderer, contextBridge } = require('electron');\n\
+             contextBridge.exposeInMainWorld('native', { log: (text) => ipcRenderer.send('log', text) });",
+        ),
+        (
+            "index.html",
+            "<!doctype html><html><body><script type='module' src='./renderer.js'></script></body></html>",
+        ),
+        (
+            "renderer.js",
+            r#"const log = (text) => window.native.log(text);
+const container = navigator.serviceWorker;
+container.addEventListener('message', (event) => log(`message ${event.data} ${event.source === container.controller}`));
+(async () => {
+  const registration = await container.register(`sw.js?v=${1}`);
+  log(`registered ${registration.scope.endsWith('local/')} ${container.controller === null}`);
+  if (!container.controller) await new Promise((resolve) => container.addEventListener('controllerchange', resolve, { once: true }));
+  const response = await fetch('https://example.test/hello');
+  log(`fetched ${response.status} ${await response.text()} ${container.controller.state}`);
+  container.controller.postMessage('ping');
+})().catch((error) => log(`error ${error}`));"#,
+        ),
+        (
+            "sw.js",
+            r#"self.addEventListener('install', (event) => event.waitUntil(self.skipWaiting()));
+self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
+self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+  if (url.hostname === 'example.test') event.respondWith(new Response(`from worker ${url.pathname}`, { status: 201 }));
+});
+self.addEventListener('message', async (event) => {
+  const clients = await self.clients.matchAll({ includeUncontrolled: true });
+  event.source.postMessage(`pong ${event.data} ${clients.length}`);
+});"#,
+        ),
+    ]);
+    let mut session = shimforge::Session::new();
+    let select = shimforge::mock!(
+        session,
+        select_toolchain,
+        fn(Option<&Path>, &Path) -> Toolchain
+    );
+    select.expect().returning(move |_, _| Toolchain {
+        rustc: sysroot.join("bin/rustc.exe"),
+        sysroot: Some(sysroot.clone()),
+    });
+    let (code, out, err) = run(&fixture, &["--out", "native-output"]);
+    assert_eq!(code, 0, "{out}{err}");
+    let executed = Command::new(fixture.path("native-output/native-service-worker.exe"))
+        .output()
+        .unwrap();
+    assert!(executed.status.success(), "{executed:?}");
+    assert_eq!(
+        String::from_utf8_lossy(&executed.stdout),
+        "registered true true\nfetched 201 from worker /hello activated\nmessage pong ping 1 true\n"
+    );
+}
+
 /// A compiled page defines custom elements: `document.createElement` and
 /// `new` construct them, a definition upgrades the elements the page already
 /// has, its callbacks follow insertions, moves, removals and observed

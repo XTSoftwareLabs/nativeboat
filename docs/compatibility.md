@@ -154,7 +154,7 @@ implemented natively, so they work without their addon:
 | Web notifications | Partial | shown as notification area balloons, which Windows shows as banners, with their icons; `show`, `click`, `close` and `error` events fire; actions are not available |
 | `document.execCommand` | Partial | `copy`, `cut`, `paste`, `undo`, `redo`, `selectAll`, `insertText`, `insertParagraph`, `insertLineBreak`, `delete` and `forwardDelete` are supported; other commands are not available |
 | WebGL | Not supported | |
-| Service Workers | Not supported | |
+| Service Workers | Partial | registered workers install and activate at once; their `fetch` event answers the `fetch()` calls and images of the pages they control, not their scripts, stylesheets or navigations; caches live in memory |
 | IndexedDB | Not supported | use `localStorage` or the file system |
 | Web Audio, media devices (camera, microphone) | Not supported | |
 

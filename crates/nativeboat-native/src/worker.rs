@@ -118,6 +118,46 @@ pub(crate) fn start(
     Ok(id)
 }
 
+/// Starts the service worker `script` for `scope` in a realm of its own,
+/// which `page` steps as it steps its workers, and returns the realm's
+/// address. Its prelude takes no ports: pages connect to it (see
+/// [`crate::service_worker`]).
+pub(crate) fn start_service(page: &mut Realm, script: &str, scope: &str) -> Result<usize, Thrown> {
+    let Some(scope_prelude) = page.worker_scope else {
+        return Err(page.throw(
+            ErrorKind::Type,
+            "service workers need the renderer libraries this build was made without",
+        ));
+    };
+    let mut realm = Box::new(Realm::new());
+    realm.message_ports = page.message_ports.clone();
+    realm.node_library = page.node_library;
+    realm.worker_scope = page.worker_scope;
+    realm.register_scripts(page.registered_scripts());
+    realm.source_functions = page.source_functions.clone();
+    let host = crate::web::worker_host(&mut realm);
+    realm.web_host = Some(host.clone());
+    let arguments = realm.array(vec![
+        Value::Object(host),
+        Value::Null,
+        Value::Null,
+        Value::str(script),
+        Value::str(""),
+        Value::Null,
+        Value::str(scope),
+    ]);
+    realm.global_object().define(
+        Key::name(PRELUDE_ARGUMENTS),
+        Property::hidden(Value::Object(arguments)),
+    );
+    page.next_worker += 1;
+    let id = page.next_worker;
+    let address = &*realm as *const Realm as usize;
+    let _ = realm.start_host(scope_prelude);
+    page.workers.push(Worker::new(id, realm));
+    Ok(address)
+}
+
 /// Ends the worker `id` of `page`, as `worker.terminate()` does: its realm
 /// and its ports go away, and its queued work never runs.
 pub(crate) fn terminate(page: &mut Realm, id: u32) {

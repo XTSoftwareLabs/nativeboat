@@ -403,12 +403,12 @@ fn web_apis() {
         "web-crypto",
         "websocket",
         "worker",
+        "service-worker",
         "custom-elements",
         "shadow-dom",
     ];
     let unsupported = [
         "webgl",
-        "service-worker",
         "indexeddb",
         "web-audio",
         "media-devices",

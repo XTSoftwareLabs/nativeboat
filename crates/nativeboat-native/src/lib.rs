@@ -148,6 +148,8 @@ mod web_crypto_builtin;
 pub mod woff;
 mod work_queue;
 #[cfg(feature = "dom")]
+pub mod service_worker;
+#[cfg(feature = "dom")]
 pub mod worker;
 mod zlib_builtin;
 

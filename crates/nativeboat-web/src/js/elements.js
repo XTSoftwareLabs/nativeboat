@@ -1312,12 +1312,31 @@ const downloadImage = (url, done) => {
     return;
   }
   imageDownloads.set(url, [done]);
-  page.fetchImage(url, (bytes) => {
+  const finish = (bytes) => {
     const loaded = bytes !== null && page.addImage(url, bytes);
     const callbacks = imageDownloads.get(url);
     imageDownloads.delete(url);
     for (const callback of callbacks) callback(loaded);
-  });
+  };
+  if (!serviceController) {
+    page.fetchImage(url, finish);
+    return;
+  }
+  // A page a service worker controls asks it first.
+  serviceWorkerFetch(new Request(url)).then(
+    (response) => {
+      if (!response) {
+        page.fetchImage(url, finish);
+        return;
+      }
+      if (!response.ok) {
+        finish(null);
+        return;
+      }
+      response.arrayBuffer().then((buffer) => finish(new Uint8Array(buffer)), () => finish(null));
+    },
+    () => finish(null),
+  );
 };
 const imageEvents = (image) => {
   const source = image.getAttribute('src');

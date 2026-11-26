@@ -377,6 +377,8 @@ impl Drop for Realm {
             let id = self.id;
             HOMES.0.borrow_mut().retain(|(known, _)| *known != id);
         }
+        #[cfg(feature = "dom")]
+        crate::service_worker::forget(self as *const Realm as usize);
     }
 }
 

@@ -355,7 +355,6 @@ Object.assign(navigator, {
     platform: 'Windows',
   },
   mediaDevices: undefined,
-  serviceWorker: undefined,
   clipboard: {
     writeText: (text) => (page.writeClipboard(String(text)) ? Promise.resolve() : clipboardDenied()),
     readText: () => {
@@ -1257,6 +1256,241 @@ class Worker extends EventTarget {
 }
 defineHandlers(Worker.prototype, ['message', 'messageerror', 'error']);
 
+// Service workers. Registrations are the process's, by scope: a page in a
+// registration's scope connects to its worker over a port, which carries the
+// worker's messages and state, `clients.claim()`, and the requests of the
+// pages the worker controls, which it answers with its `fetch` event.
+const SERVICE = Symbol('nativeboat.serviceWorker');
+const CONSTRUCTING = Symbol('nativeboat.constructing');
+let serviceClientId = null;
+const serviceConnections = new Map();
+let serviceController = null;
+let serviceReady = null;
+class ServiceWorker extends EventTarget {
+  constructor(token, connection) {
+    if (token !== CONSTRUCTING) illegal();
+    super();
+    hidden(this, SERVICE, connection);
+  }
+
+  get scriptURL() {
+    return this[SERVICE].script;
+  }
+
+  get state() {
+    return this[SERVICE].state;
+  }
+
+  postMessage(data, transfer) {
+    const connection = this[SERVICE];
+    let ports = transfer;
+    if (transfer !== undefined && transfer !== null) {
+      const list = Array.isArray(transfer) ? transfer : transfer.transfer;
+      ports = list === undefined || list === null ? [] : [...list].filter((item) => !(item instanceof ArrayBuffer));
+    }
+    connection.port.postMessage({ kind: 'message', data }, ports);
+  }
+}
+defineHandlers(ServiceWorker.prototype, ['statechange', 'error']);
+class ServiceWorkerRegistration extends EventTarget {
+  constructor(token, connection) {
+    if (token !== CONSTRUCTING) illegal();
+    super();
+    hidden(this, SERVICE, connection);
+  }
+
+  get scope() {
+    return this[SERVICE].scope;
+  }
+
+  get updateViaCache() {
+    return 'imports';
+  }
+
+  get installing() {
+    const { state, worker } = this[SERVICE];
+    return state === 'parsed' || state === 'installing' ? worker : null;
+  }
+
+  get waiting() {
+    return this[SERVICE].state === 'installed' ? this[SERVICE].worker : null;
+  }
+
+  get active() {
+    const { state, worker } = this[SERVICE];
+    return state === 'activating' || state === 'activated' ? worker : null;
+  }
+
+  get navigationPreload() {
+    return {
+      enable: () => Promise.resolve(),
+      disable: () => Promise.resolve(),
+      setHeaderValue: () => Promise.resolve(),
+      getState: () => Promise.resolve({ enabled: false, headerValue: 'true' }),
+    };
+  }
+
+  update() {
+    return Promise.resolve(this);
+  }
+
+  unregister() {
+    return Promise.resolve(host.unregisterServiceWorker(this[SERVICE].id));
+  }
+}
+defineHandlers(ServiceWorkerRegistration.prototype, ['updatefound']);
+class ServiceWorkerContainer extends EventTarget {
+  constructor(token) {
+    if (token !== CONSTRUCTING) illegal();
+    super();
+  }
+
+  get controller() {
+    return serviceController;
+  }
+
+  get ready() {
+    if (!serviceReady) {
+      serviceReady = new Promise((resolve) => {
+        const check = () => {
+          for (const connection of serviceConnections.values()) {
+            if (connection.state === 'activated' && location.href.startsWith(connection.scope)) {
+              resolve(connection.registration);
+              return true;
+            }
+          }
+          return false;
+        };
+        if (!check()) serviceReadyChecks.push(check);
+      });
+    }
+    return serviceReady;
+  }
+
+  register(scriptURL, options = {}) {
+    let script;
+    let scope;
+    try {
+      script = new URL(String(scriptURL), document.baseURI);
+      scope = new URL(options && options.scope !== undefined ? String(options.scope) : './', script).href;
+    } catch (error) {
+      return Promise.reject(new TypeError(`Failed to register a ServiceWorker: ${error.message}`));
+    }
+    host.registerServiceWorker(script.href, scope);
+    const found = host.serviceWorkerFor(scope);
+    const connection = serviceConnection(found, false);
+    return Promise.resolve(connection.registration);
+  }
+
+  getRegistration(clientURL) {
+    const found = host.serviceWorkerFor(new URL(clientURL === undefined ? '' : String(clientURL), location.href).href);
+    return Promise.resolve(found ? serviceConnection(found, false).registration : undefined);
+  }
+
+  getRegistrations() {
+    const found = host.serviceWorkerFor(location.href);
+    return Promise.resolve(found ? [serviceConnection(found, false).registration] : []);
+  }
+
+  startMessages() {}
+}
+defineHandlers(ServiceWorkerContainer.prototype, ['controllerchange', 'message', 'messageerror']);
+const serviceReadyChecks = [];
+const serviceContainer = new ServiceWorkerContainer(CONSTRUCTING);
+
+// The connection to a registration's worker, made once: `found` is its id,
+// scope, script and state; `controlled` whether this page loaded with the
+// worker active, so that it controls the page from the start.
+const serviceConnection = (found, controlled) => {
+  const [id, scope, script, state] = found;
+  const known = serviceConnections.get(id);
+  if (known) return known;
+  serviceClientId ??= crypto.randomUUID();
+  const port = nativePort(host.connectServiceWorker(id, serviceClientId, location.href, 'window'));
+  const connection = { id, scope, script, state, port, requests: new Map(), nextRequest: 0 };
+  connection.worker = new ServiceWorker(CONSTRUCTING, connection);
+  connection.registration = new ServiceWorkerRegistration(CONSTRUCTING, connection);
+  serviceConnections.set(id, connection);
+  const control = () => {
+    if (serviceController === connection.worker) return;
+    serviceController = connection.worker;
+    fire(serviceContainer, Event, 'controllerchange');
+  };
+  port.onmessage = (event) => {
+    const message = event.data;
+    switch (message && message.kind) {
+      case 'state':
+        if (connection.state === message.state) return;
+        connection.state = message.state;
+        fire(connection.worker, Event, 'statechange');
+        if (message.state === 'activated') {
+          for (const check of serviceReadyChecks.splice(0)) if (!check()) serviceReadyChecks.push(check);
+        }
+        return;
+      case 'claim':
+        control();
+        return;
+      case 'message':
+        fire(serviceContainer, MessageEvent, 'message', {
+          data: message.data,
+          ports: event.ports,
+          source: connection.worker,
+          origin: new URL(connection.scope).origin,
+        });
+        return;
+      case 'response': {
+        const pending = connection.requests.get(message.id);
+        if (!pending) return;
+        connection.requests.delete(message.id);
+        if (message.fallback) pending.resolve(null);
+        else if (message.error !== undefined) pending.reject(new TypeError(message.error));
+        else {
+          const nullBody = [101, 103, 204, 205, 304].includes(message.status);
+          pending.resolve(new Response(nullBody ? null : message.body, {
+            status: message.status,
+            statusText: message.statusText,
+            headers: message.headers,
+          }));
+        }
+        return;
+      }
+    }
+  };
+  port.postMessage({ kind: 'hello', controlled });
+  if (controlled) serviceController = connection.worker;
+  return connection;
+};
+
+// A page that loads in an active registration's scope is controlled by its
+// worker from the start.
+if (typeof host.serviceWorkerFor === 'function') {
+  const found = host.serviceWorkerFor(location.href);
+  if (found && found[3] === 'activated') serviceConnection(found, true);
+}
+
+// The requests of a page a worker controls go to the worker first: its
+// response, or null for the network.
+const serviceWorkerFetch = (request) => {
+  const controller = serviceController;
+  if (!controller) return Promise.resolve(null);
+  const connection = controller[SERVICE];
+  const id = ++connection.nextRequest;
+  return new Promise((resolve, reject) => {
+    connection.requests.set(id, { resolve, reject });
+    connection.port.postMessage({
+      kind: 'fetch',
+      id,
+      url: request.url,
+      method: request.method,
+      headers: [...request.headers],
+      destination: request.destination ?? '',
+      mode: request.mode ?? 'cors',
+    });
+  });
+};
+hidden(globalThis, '__nativeboatServiceWorkerFetch', serviceWorkerFetch);
+navigator.serviceWorker = serviceContainer;
+
 const PARTS = Symbol('nativeboat.form');
 
 class FormData {
@@ -1862,6 +2096,9 @@ const globals = {
   MessageChannel,
   MessagePort,
   Worker,
+  ServiceWorker,
+  ServiceWorkerContainer,
+  ServiceWorkerRegistration,
   Notification,
   FormData,
   Blob,
