@@ -8613,7 +8613,7 @@ protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: t
 const lines: string[] = [];
 ipcMain.on('log', (_event, text) => {
   lines.push(text);
-  if (lines.length === 3) { console.log(lines.join('\n')); app.quit(); }
+  if (lines.length === 4) { console.log(lines.join('\n')); app.quit(); }
 });
 app.whenReady().then(() => {
   protocol.handle('app', () => new Response(''));
@@ -8642,6 +8642,16 @@ container.addEventListener('message', (event) => log(`message ${event.data} ${ev
   if (!container.controller) await new Promise((resolve) => container.addEventListener('controllerchange', resolve, { once: true }));
   const response = await fetch('https://example.test/hello');
   log(`fetched ${response.status} ${await response.text()} ${container.controller.state}`);
+  await new Promise((resolve) => {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://example.test/style.css';
+    link.addEventListener('load', () => {
+      log(`styled ${getComputedStyle(document.body).marginLeft}`);
+      resolve();
+    });
+    document.head.append(link);
+  });
   container.controller.postMessage('ping');
 })().catch((error) => log(`error ${error}`));"#,
         ),
@@ -8651,7 +8661,8 @@ container.addEventListener('message', (event) => log(`message ${event.data} ${ev
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-  if (url.hostname === 'example.test') event.respondWith(new Response(`from worker ${url.pathname}`, { status: 201 }));
+  if (url.pathname === '/style.css') event.respondWith(new Response('body { margin-left: 13px }', { headers: { 'content-type': 'text/css' } }));
+  else if (url.hostname === 'example.test') event.respondWith(new Response(`from worker ${url.pathname}`, { status: 201 }));
 });
 self.addEventListener('message', async (event) => {
   const clients = await self.clients.matchAll({ includeUncontrolled: true });
@@ -8677,7 +8688,7 @@ self.addEventListener('message', async (event) => {
     assert!(executed.status.success(), "{executed:?}");
     assert_eq!(
         String::from_utf8_lossy(&executed.stdout),
-        "registered true true\nfetched 201 from worker /hello activated\nmessage pong ping 1 true\n"
+        "registered true true\nfetched 201 from worker /hello activated\nstyled 13px\nmessage pong ping 1 true\n"
     );
 }
 

@@ -1358,7 +1358,7 @@ const imageEvents = (image) => {
 // handlers the compiler made of their text, and its images load, as the
 // parser starts them. Markup without either costs one test.
 const parsedMarkup = (html, root) => {
-  if (!/<img|<video|<audio|\son[a-z]+\s*=/i.test(html)) return;
+  if (!/<img|<video|<audio|<link|\son[a-z]+\s*=/i.test(html)) return;
   const handlers = globalThis.__nativeboatHandlers;
   for (const element of root.querySelectorAll('*')) {
     // Template contents are inert.
@@ -1370,6 +1370,7 @@ const parsedMarkup = (html, root) => {
       }
     }
     if (element.localName === 'img' && element.hasAttribute('src')) imageEvents(element);
+    else if (element.localName === 'link') linkEvents(element);
     else if (element.localName === 'video' || element.localName === 'audio') mediaLoad(element);
   }
 };
@@ -1455,6 +1456,23 @@ register(HTMLStyleElement, ['style']);
 const linkEvents = (link) => {
   const rel = (link.getAttribute('rel') || '').toLowerCase().split(/\s+/);
   if (!rel.includes('stylesheet') || link.getAttribute('href') === null) return;
+  // A page a service worker controls reads its network sheets from the
+  // worker, and gives the page their text.
+  const url = resolveURL(link.getAttribute('href'));
+  if (serviceController && /^https?:/i.test(url)) {
+    serviceWorkerFetch(new Request(url)).then(
+      async (response) => {
+        if (!response || !response.ok) {
+          fire(link, Event, 'error');
+          return;
+        }
+        page.sheetRules(link[ID], await response.text());
+        fire(link, Event, 'load');
+      },
+      () => fire(link, Event, 'error'),
+    );
+    return;
+  }
   setTimeout(() => fire(link, Event, 'load'), 0);
 };
 class HTMLLinkElement extends HTMLElement {
