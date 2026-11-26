@@ -58,6 +58,7 @@ fn two_package_layouts_use_production_metadata_and_root_build_configuration() {
         plugins: None,
         documents: None,
         forks: None,
+        scripts: None,
         unknown: vec!["later".to_owned()],
     };
     let project = crate::load_with(fixture.root(), &settings).unwrap();

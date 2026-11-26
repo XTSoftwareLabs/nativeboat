@@ -200,3 +200,37 @@ fn forked_modules_are_found_by_the_paths_programs_start_them_by() {
     );
     assert!(module_entry(root, "ext/missing").is_none());
 }
+
+#[test]
+fn named_scripts_are_found_from_their_sources() {
+    let fixture = Fixture::new(&[
+        ("ext/media/plain.js", "export const plain = 1;"),
+        ("ext/preview-src/index.ts", "export const preview = 1;"),
+    ]);
+    let root = fixture.root();
+    let items = serde_json::json!([
+        "ext/media/plain.js",
+        {"path": "ext/media/index.js", "source": "ext/preview-src/index.ts"},
+        "ext/media/missing.js"
+    ]);
+    let mut warnings = Vec::new();
+    let scripts = crate::named_scripts(root, items.as_array().unwrap(), &mut warnings);
+    let named: Vec<(String, String)> = scripts
+        .iter()
+        .map(|(path, source)| (path.clone(), crate::relative(root, source)))
+        .collect();
+    assert_eq!(
+        named,
+        [
+            (
+                "ext/media/plain.js".to_owned(),
+                "ext/media/plain.js".to_owned()
+            ),
+            (
+                "ext/media/index.js".to_owned(),
+                "ext/preview-src/index.ts".to_owned()
+            ),
+        ]
+    );
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+}

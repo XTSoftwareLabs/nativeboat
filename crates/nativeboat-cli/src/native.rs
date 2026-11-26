@@ -564,8 +564,10 @@ fn compile_with(
         &renderer_defines(project),
         project.layout == Layout::ElectronVite,
     );
-    // Pages may load package scripts with script elements while they run.
+    // Pages may load package scripts with script elements while they run,
+    // and the scripts the project names by the URLs pages build.
     renderer_options.package_scripts = true;
+    renderer_options.named_scripts = project.scripts.clone();
     errors.extend(renderer_option_errors);
     let mut renderers: Vec<CompiledContext> = Vec::new();
     let mut renderer_entries = Vec::new();

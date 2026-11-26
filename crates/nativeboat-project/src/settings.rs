@@ -21,6 +21,10 @@ pub struct Settings {
     /// Paths of the modules the program starts with `fork()` by paths it
     /// builds while it runs (see [`crate::plugins::module_entry`]).
     pub forks: Option<Vec<String>>,
+    /// Scripts the program loads by URLs it builds while it runs (see
+    /// [`crate::Project::scripts`]): their paths, or objects with the
+    /// `path` URLs end with and the `source` it is compiled from.
+    pub scripts: Option<Vec<serde_json::Value>>,
     /// The settings the file gives that this NativeBoat does not know.
     pub unknown: Vec<String>,
 }
@@ -61,6 +65,14 @@ impl Settings {
                             path.display()
                         )
                     })?),
+                "scripts" => {
+                    settings.scripts = Some(crate::scripts_setting(&value).ok_or_else(|| {
+                        format!(
+                            "\"scripts\" in the settings file {} must be a list of paths or of objects with \"path\" and \"source\"",
+                            path.display()
+                        )
+                    })?)
+                }
                 "forks" => {
                     settings.forks = Some(crate::plugins::patterns(&value).ok_or_else(|| {
                         format!(
