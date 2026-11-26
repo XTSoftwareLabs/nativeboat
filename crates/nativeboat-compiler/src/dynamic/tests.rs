@@ -1731,10 +1731,6 @@ fn module_create_require_keeps_dynamic_and_escaped_uses_as_diagnostics() {
             "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url); require?.resolve('./dependency.cjs');",
             "optional require.resolve calls are not compiled yet",
         ),
-        (
-            "import { createRequire } from 'module'; const require = createRequire(import.meta.url); export { require };",
-            "createRequire bindings cannot escape statically compiled require calls",
-        ),
     ] {
         let diagnostics = compile_dynamic(source, Path::new("create-require.mjs")).unwrap_err();
         assert!(
@@ -3361,6 +3357,26 @@ module.exports = [thrown, require('other.cjs'), require?.('other.cjs')].join('|'
     assert_eq!((warnings[0].0, warnings[0].1), (2, 7));
     assert!(warnings[0].2.contains("computed when the application runs"));
     assert_eq!(print_result(&module), "MODULE_NOT_FOUND|other|other");
+}
+
+/// A `createRequire` binding kept as a value, as esbuild's `__require`
+/// wrapper keeps it, is a function that requires by name when it runs.
+#[test]
+fn create_require_used_as_a_value_requires_by_name() {
+    let module = mixed(
+        "main.mjs",
+        &[(
+            "main.mjs",
+            "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);
+var __require = ((x) => typeof require !== 'undefined' ? require : x)(function (x) { throw new Error('no ' + x); });
+let code;
+try { __require('missing' + '.cjs'); } catch (error) { code = error.code; }
+export const result = [typeof require, typeof __require, code].join('|');",
+        )],
+    )
+    .unwrap_or_else(|errors| panic!("{errors:#?}"));
+    assert_eq!(module.warnings().len(), 1, "{:?}", module.warnings());
+    assert_eq!(print_result(&module), "function|function|MODULE_NOT_FOUND");
 }
 
 #[test]
@@ -6304,6 +6320,30 @@ fn named_scripts_are_lazy_entries_keyed_by_their_paths() {
     let module = mixed_with("main.js", &files, &options, &mut requested).unwrap();
     assert_eq!(module.scripts(), [("media/index.js".to_owned(), 1)]);
     assert_eq!(module.entry_count(), 2);
+}
+
+/// A graph that registers service workers looks up their scripts as it
+/// does workers', by the paths before a query, also in template literals.
+#[test]
+fn service_worker_scripts_are_lazy_entries_named_without_their_query() {
+    let files = [
+        (
+            "main.js",
+            "export const start = (version) => navigator.serviceWorker.register(encodeURI(`pre/sw.js?v=${version}`), { type: 'module' });              export const other = () => navigator.serviceWorker.register('pre/other.js?x=1#top');              export const skipped = (name) => `${name}.js`;",
+        ),
+        ("pre/sw.js", "self.addEventListener('fetch', () => {});"),
+        ("pre/other.js", "export const other = 1;"),
+    ];
+    let options = CompileOptions {
+        package_scripts: true,
+        ..CompileOptions::default()
+    };
+    let mut requested = Vec::new();
+    let module = mixed_with("main.js", &files, &options, &mut requested).unwrap();
+    assert_eq!(
+        module.scripts(),
+        [("pre/sw.js".to_owned(), 1), ("pre/other.js".to_owned(), 2)]
+    );
 }
 
 /// Closures capture values, not the types their annotations name: a
