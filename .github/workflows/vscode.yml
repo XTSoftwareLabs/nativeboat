@@ -47,7 +47,10 @@ jobs:
           node-version: 22
       - name: Build the release package
         shell: pwsh
-        run: ./scripts/build-release.ps1
+        run: |
+          # A package of an earlier run may come back with the build cache.
+          Remove-Item target/release-package -Recurse -Force -ErrorAction SilentlyContinue
+          ./scripts/build-release.ps1
       - uses: actions/upload-artifact@v4
         with:
           name: nativeboat
