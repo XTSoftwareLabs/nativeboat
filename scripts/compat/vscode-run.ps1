@@ -1,6 +1,7 @@
-# Runs a native VS Code build with its own user data and extensions folders
-# and a folder open, saves a window snapshot, its output and VS Code's logs
-# into -OutputDirectory.
+# Runs a native VS Code build with its own user data and extensions folders,
+# a folder and its README open, and settings that skip the start page and
+# the AI sign-in, then saves a window snapshot, its output and VS Code's
+# logs into -OutputDirectory.
 param(
     [Parameter(Mandatory)][string]$Out,
     [Parameter(Mandatory)][string]$OutputDirectory,
@@ -10,8 +11,18 @@ param(
 $ErrorActionPreference = 'Stop'
 $executable = Get-ChildItem $Out -Filter *.exe | Select-Object -First 1
 if (-not $executable) { throw "No executable in $Out" }
+$user = Join-Path $OutputDirectory 'data\User'
+New-Item -ItemType Directory -Force $user | Out-Null
+@{
+    'workbench.startupEditor' = 'none'
+    'chat.disableAIFeatures' = $true
+    'telemetry.telemetryLevel' = 'off'
+    'update.mode' = 'none'
+    'extensions.autoUpdate' = $false
+    'workbench.enableExperiments' = $false
+} | ConvertTo-Json | Set-Content (Join-Path $user 'settings.json')
 $arguments = "--user-data-dir=$OutputDirectory\data", "--extensions-dir=$OutputDirectory\extensions",
-    '--enable-smoke-test-driver', '--disable-workspace-trust', $Folder
+    '--enable-smoke-test-driver', '--disable-workspace-trust', $Folder, (Join-Path $Folder 'README.md')
 & (Join-Path $PSScriptRoot '..\app-snapshot.ps1') -Executable $executable.FullName -OutputDirectory $OutputDirectory `
     -WaitSeconds $WaitSeconds -Arguments $arguments
 Get-Process | Where-Object { $_.Path -eq $executable.FullName } | Stop-Process -Force -ErrorAction SilentlyContinue
