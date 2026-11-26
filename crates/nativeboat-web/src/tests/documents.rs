@@ -101,3 +101,15 @@ fn iframes_reflect_their_attributes_and_have_no_browsing_context_yet() {
       eq(frame.contentWindow,null,'no window');eq(frame.contentDocument,null,'no document');
     "#);
 }
+
+#[test]
+fn document_write_replaces_the_document_and_loads_it_again() {
+    let mut page = fixture("<p id=old>old</p>");
+    page.check(r#"
+      const events=[];document.addEventListener('DOMContentLoaded',()=>events.push('ready'));window.addEventListener('load',()=>events.push('load'));
+      eq(document.open(),document,'open returns the document');eq(document.getElementById('old'),null,'emptied');eq(document.readyState,'loading','loading');
+      document.write('<p id=new>a');document.writeln('b</p>');document.close();
+      eq(document.getElementById('new').textContent,'ab\n','written markup');eq(document.readyState,'complete','loaded');eq(events.join(),'ready,load','load events');
+      document.close();eq(events.length,2,'close without open does nothing');
+    "#);
+}
