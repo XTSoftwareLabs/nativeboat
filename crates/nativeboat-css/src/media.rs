@@ -65,7 +65,7 @@ impl Comparison {
         }
     }
 
-    fn test(self, actual: f64, expected: f64) -> bool {
+    pub(crate) fn test(self, actual: f64, expected: f64) -> bool {
         match self {
             Comparison::Equal => (actual - expected).abs() < 1e-9,
             Comparison::Less => actual < expected,
@@ -278,7 +278,7 @@ fn comparison(tokens: &[&Token]) -> Option<(Comparison, usize)> {
 }
 
 /// Parses the inside of a media feature's parentheses.
-fn parse_feature(tokens: &[&Token]) -> Option<Vec<MediaFeature>> {
+pub(crate) fn parse_feature(tokens: &[&Token]) -> Option<Vec<MediaFeature>> {
     let feature = |name: &str, test| MediaFeature {
         name: name.to_ascii_lowercase(),
         test,

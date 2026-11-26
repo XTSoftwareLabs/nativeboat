@@ -23,6 +23,7 @@ pub(crate) mod prelude {
 pub mod cascade;
 pub mod color;
 pub mod computed;
+pub mod container;
 mod math;
 pub mod media;
 pub mod page;

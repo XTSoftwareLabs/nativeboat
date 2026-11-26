@@ -202,7 +202,7 @@ fn font_faces_and_keyframes() {
 #[test]
 fn unknown_at_rules_are_kept() {
     let (sheet, _) = parse_stylesheet(
-        "@counter-style thumbs { system: cyclic }\n@container sidebar (min-width: 4px) { a {} }\n@media print;",
+        "@counter-style thumbs { system: cyclic }\n@font-feature-values Font { @swash { fancy: 1 } }\n@media print;",
     );
     let names: Vec<(String, String, u32)> = sheet
         .rules
@@ -220,14 +220,28 @@ fn unknown_at_rules_are_kept() {
         names,
         vec![
             ("counter-style".to_owned(), "thumbs".to_owned(), 1),
-            (
-                "container".to_owned(),
-                "sidebar (min-width: 4px)".to_owned(),
-                2
-            ),
+            ("font-feature-values".to_owned(), "Font".to_owned(), 2),
             ("media".to_owned(), "print".to_owned(), 3),
         ]
     );
+}
+
+#[test]
+fn container_rules_keep_their_query_and_rules() {
+    let (sheet, _) = parse_stylesheet(
+        "@container sidebar (min-width: 4px) { a { color: red } }\n@container a b (width > 1px) { b {} }\n.card { @container (width < 9px) { color: blue } }",
+    );
+    let containers: Vec<_> = sheet
+        .rules
+        .iter()
+        .filter_map(|rule| match rule {
+            Rule::Container { query, rules } => Some((query.name.clone(), rules.len())),
+            _ => None,
+        })
+        .collect();
+    // The invalid prelude drops its rule; the nested one keeps the parent
+    // selector.
+    assert_eq!(containers, vec![(Some("sidebar".to_owned()), 1), (None, 1)]);
 }
 
 #[test]

@@ -3,6 +3,7 @@
 use crate::prelude::*;
 
 use nativeboat_css::cascade::merge_matches;
+use nativeboat_css::container::QueryContainer;
 use nativeboat_css::parser::{Declaration, parse_declaration_list};
 use nativeboat_css::selector::{RelatedFeatures, Specificity, structure};
 use nativeboat_css::types::{ContainerType, Display, Overflow};
@@ -659,6 +660,9 @@ impl Styles {
         // its parent's lineage holds. Rules with `:has()` are matched every
         // time.
         let relational = rules.is_relational();
+        // Rules in `@container` rules depend on query containers' sizes,
+        // so they too are matched every time.
+        let conditional = rules.has_container_queries();
         let (targets, paths) = shown_by_use(dom);
         let mut environment = *environment;
         // Elements with their parent's style, whether they are inside an
@@ -714,13 +718,20 @@ impl Styles {
                     })
                 });
             styles.contexts.insert(node, context);
-            let relational = if relational {
-                core::iter::once(rules.matching_relational(&element, None))
-                    .chain(
-                        parts
-                            .iter()
-                            .map(|part| rules.matching_relational(&element, Some((part, 0)))),
-                    )
+            let relational = if relational || conditional {
+                let container =
+                    |name: Option<&str>| Self::query_container(dom, &styles.elements, node, name);
+                core::iter::once(None)
+                    .chain(parts.iter().map(Some))
+                    .map(|part| {
+                        let pseudo = part.map(|part| (part, 0));
+                        let relational = rules.matching_relational(&element, pseudo);
+                        if !conditional {
+                            return relational;
+                        }
+                        let conditional = rules.matching_conditional(&element, pseudo, &container);
+                        merge_matches(&relational, &conditional)
+                    })
                     .collect()
             } else {
                 Vec::new()
@@ -887,6 +898,35 @@ impl Styles {
             styles.elements.insert(node, style);
         }
         styles
+    }
+
+    /// The size of an element's nearest query container with a name, or of
+    /// any query container for `None`, among its ancestors in the flat tree,
+    /// whose styles are computed: its width, and its height when its
+    /// `container-type` is `size`. A container not laid out yet has neither.
+    fn query_container(
+        dom: &Dom,
+        styles: &HashMap<NodeId, Rc<ComputedStyle>>,
+        node: NodeId,
+        name: Option<&str>,
+    ) -> Option<QueryContainer> {
+        let mut ancestor = dom.flat_parent_element(node);
+        while let Some(id) = ancestor {
+            if let Some(style) = styles.get(&id)
+                && style.container_type != ContainerType::Normal
+                && name.is_none_or(|name| style.container_name.0.iter().any(|own| own == name))
+            {
+                return Some(match style.query_size {
+                    Some((width, height)) => QueryContainer {
+                        width: Some(width),
+                        height: (style.container_type == ContainerType::Size).then_some(height),
+                    },
+                    None => QueryContainer::default(),
+                });
+            }
+            ancestor = dom.flat_parent_element(id);
+        }
+        None
     }
 
     /// The style of an element, computed on demand for one inside a hidden

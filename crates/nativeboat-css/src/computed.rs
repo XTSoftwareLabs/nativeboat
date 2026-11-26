@@ -468,6 +468,8 @@ pub struct ComputedStyle {
     pub alignment_baseline: SvgBaseline,
     /// `container-type`
     pub container_type: ContainerType,
+    /// `container-name`
+    pub container_name: ContainerName,
     /// Custom properties.
     pub custom: Rc<BTreeMap<String, String>>,
     /// Whether author CSS styles the background or border, or sets
@@ -676,6 +678,7 @@ impl Default for ComputedStyle {
             dominant_baseline: SvgBaseline::Auto,
             alignment_baseline: SvgBaseline::Auto,
             container_type: ContainerType::Normal,
+            container_name: ContainerName::default(),
             custom: Rc::default(),
             author_appearance: false,
             appearance_none: false,
@@ -793,6 +796,7 @@ longhands! {
     OverflowWrap => "overflow-wrap", true, parsers::keyword::<OverflowWrap>, overflow_wrap;
     LetterSpacing => "letter-spacing", true, parsers::spacing, letter_spacing;
     ContainerType => "container-type", false, parsers::keyword::<ContainerType>, container_type;
+    ContainerName => "container-name", false, parsers::container_name, container_name;
     TabSize => "tab-size", true, parsers::tab_size, tab_size;
     TextIndent => "text-indent", true, parsers::length, text_indent;
     VerticalAlign => "vertical-align", false, parsers::vertical_align, vertical_align;

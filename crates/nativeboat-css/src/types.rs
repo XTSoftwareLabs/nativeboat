@@ -2246,6 +2246,20 @@ impl ToCss for Content {
     }
 }
 
+/// The `container-name` property: the names container queries may give
+/// to choose this element as their query container.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct ContainerName(pub Vec<String>);
+
+impl ToCss for ContainerName {
+    fn to_css(&self) -> String {
+        if self.0.is_empty() {
+            return "none".to_owned();
+        }
+        self.0.join(" ")
+    }
+}
+
 /// `counter-reset`, `counter-increment` or `counter-set`: counter names, each
 /// with its value or step.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]

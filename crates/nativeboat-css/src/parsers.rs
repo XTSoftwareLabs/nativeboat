@@ -609,6 +609,29 @@ pub fn counter_changes(values: &[ComponentValue], default: i32) -> Option<Counte
     (!changes.is_empty()).then_some(CounterChanges(changes))
 }
 
+/// `container-name`: `none`, or names other than the words container
+/// queries reserve.
+pub fn container_name(values: &[ComponentValue], _: &Context) -> Option<ContainerName> {
+    let parts = without_whitespace(values);
+    if single(&parts).is_some_and(|value| value.is_ident("none")) {
+        return Some(ContainerName::default());
+    }
+    let mut names = Vec::new();
+    for part in parts {
+        let ComponentValue::Token(Token::Ident(name)) = part else {
+            return None;
+        };
+        let reserved = [
+            "none", "and", "or", "not", "default", "initial", "inherit", "unset", "revert",
+        ];
+        if reserved.iter().any(|word| name.eq_ignore_ascii_case(word)) {
+            return None;
+        }
+        names.push(name);
+    }
+    (!names.is_empty()).then_some(ContainerName(names))
+}
+
 /// `counter-reset`.
 pub fn counter_reset(values: &[ComponentValue], _: &Context) -> Option<CounterChanges> {
     counter_changes(values, 0)

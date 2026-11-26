@@ -282,6 +282,10 @@ pub fn detect_css(source: &str) -> Vec<Located> {
                 at_rule(&mut found, "layer", unknown);
                 stack.extend(rules.iter().rev());
             }
+            Rule::Container { rules, .. } => {
+                at_rule(&mut found, "container", unknown);
+                stack.extend(rules.iter().rev());
+            }
             Rule::LayerOrder(_) => at_rule(&mut found, "layer", unknown),
             Rule::Property { .. } => at_rule(&mut found, "property", unknown),
             Rule::Import { position, .. } => at_rule(

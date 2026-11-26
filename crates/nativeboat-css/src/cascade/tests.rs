@@ -201,6 +201,40 @@ fn conditional_rules() {
 }
 
 #[test]
+fn container_names_and_the_container_shorthand() {
+    let style = style_with(
+        "#root { container: sidebar main / size }",
+        "root",
+        &StyleEnvironment::default(),
+    );
+    assert_eq!(
+        style.container_name.0,
+        vec!["sidebar".to_owned(), "main".to_owned()]
+    );
+    assert_eq!(style.container_type, crate::types::ContainerType::Size);
+    let style = style_with(
+        "#root { container-type: inline-size; container: none }",
+        "root",
+        &StyleEnvironment::default(),
+    );
+    assert!(style.container_name.0.is_empty());
+    assert_eq!(style.container_type, crate::types::ContainerType::Normal);
+    for invalid in ["and", "a / b / size", "a /", "none none"] {
+        let css = format!("#root {{ container-name: x; container: {invalid} }}");
+        let style = style_with(&css, "root", &StyleEnvironment::default());
+        assert_eq!(style.container_name.0, vec!["x".to_owned()], "{invalid}");
+    }
+    // Outside a page, rules in @container rules have no container to
+    // query and do not apply.
+    let style = style_with(
+        "@container (min-width: 0px) { #root { width: 1px } }",
+        "root",
+        &StyleEnvironment::default(),
+    );
+    assert_eq!(style.width, Size::Auto);
+}
+
+#[test]
 fn shorthands_aliases_and_prefixes() {
     let style = style_of(
         "#root { margin: 1px 2px; -webkit-user-select: none; inline-size: 7px; \

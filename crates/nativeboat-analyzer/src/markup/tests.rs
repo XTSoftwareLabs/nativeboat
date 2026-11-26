@@ -185,7 +185,7 @@ fn stylesheets() {
             ("css:import".to_owned(), 7),
             ("css:font-face".to_owned(), 0),
             ("css:animation".to_owned(), 0),
-            ("css:container".to_owned(), 10),
+            ("css:container".to_owned(), 0),
         ]
     );
     assert!(known_property("margin-inline-start"));

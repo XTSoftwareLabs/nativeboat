@@ -36,7 +36,9 @@ pub fn keyframes<'a>(
                 {
                     collect(rules, media, found);
                 }
-                Rule::Layer { rules, .. } => collect(rules, media, found),
+                Rule::Layer { rules, .. } | Rule::Container { rules, .. } => {
+                    collect(rules, media, found);
+                }
                 _ => {}
             }
         }

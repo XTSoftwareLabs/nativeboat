@@ -2,6 +2,7 @@
 
 use crate::prelude::*;
 
+use crate::container::{ContainerQuery, parse_container_query};
 use crate::media::{MediaQueryList, parse_media_query_list};
 use crate::selector::{SelectorList, parse_selector_list};
 use crate::tokenizer::{Spanned, Token, serialize_tokens, tokenize, tokens};
@@ -59,6 +60,13 @@ pub enum Rule {
         /// The media query list.
         query: MediaQueryList,
         /// Rules applied when the query matches.
+        rules: Vec<Rule>,
+    },
+    /// `@container`
+    Container {
+        /// The query.
+        query: ContainerQuery,
+        /// Rules applied to elements whose query container satisfies it.
         rules: Vec<Rule>,
     },
     /// `@supports`
@@ -343,6 +351,15 @@ impl Parser {
                 query: parse_media_query_list(&prelude),
                 rules: nested(self, block),
             }),
+            // A prelude that is not a container query drops the rule.
+            ("container", Some(block)) => {
+                if let Some(query) = parse_container_query(&prelude) {
+                    rules.push(Rule::Container {
+                        query,
+                        rules: nested(self, block),
+                    });
+                }
+            }
             ("supports", Some(block)) => rules.push(Rule::Supports {
                 condition: serialize_tokens(&prelude),
                 rules: nested(self, block),

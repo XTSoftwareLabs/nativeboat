@@ -210,6 +210,7 @@ pub fn longhands_of(name: &str) -> Option<Vec<PropertyId>> {
         "place-content" => &[P::AlignContent, P::JustifyContent],
         "place-self" => &[P::AlignSelf, P::JustifySelf],
         "overflow" => &[P::OverflowX, P::OverflowY],
+        "container" => &[P::ContainerName, P::ContainerType],
         "marker" => &[P::MarkerStart, P::MarkerMid, P::MarkerEnd],
         "font" => &[
             P::FontStyle,
@@ -323,6 +324,22 @@ pub fn expand(name: &str, values: &[ComponentValue]) -> Option<Longhands> {
         | "scroll-padding-block"
         | "scroll-padding-inline" => two([ids[0], ids[1]], &parts),
         "overflow" => two([P::OverflowX, P::OverflowY], &parts),
+        // `container: <name> [/ <type>]`; the type defaults to `normal`.
+        "container" => {
+            let mut halves = parts.split(|part| *part == ComponentValue::Token(Token::Delim('/')));
+            let name = halves.next().unwrap_or_default();
+            let kind = halves.next();
+            if name.is_empty() || halves.next().is_some() || kind.is_some_and(<[_]>::is_empty) {
+                return None;
+            }
+            Some(vec![
+                (P::ContainerName, name.to_vec()),
+                (
+                    P::ContainerType,
+                    kind.map_or_else(|| text("normal"), <[_]>::to_vec),
+                ),
+            ])
+        }
         "marker" => Some(ids.iter().map(|id| (*id, parts.clone())).collect()),
         "border-radius" => border_radius(&parts),
         "border" | "border-inline" | "border-block" => {
