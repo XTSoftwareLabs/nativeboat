@@ -39,7 +39,8 @@ jobs:
       - name: Prepare
         shell: pwsh
         run: |
-          Expand-Archive (Get-ChildItem "$env:ROOT\package" -Filter *.zip).FullName "$env:ROOT\nativeboat"
+          $zip = Get-ChildItem "$env:ROOT\package" -Recurse -Filter *.zip | Select-Object -First 1
+          Expand-Archive $zip.FullName "$env:ROOT\nativeboat"
           git clone --quiet --depth 1 --branch '${{ inputs.ref }}' https://github.com/microsoft/vscode "$env:ROOT\vscode"
           Get-PSDrive C, D | Format-Table Name, @{ n = 'FreeGB'; e = { [int]($_.Free / 1GB) } }
       - uses: actions/cache/restore@v4
