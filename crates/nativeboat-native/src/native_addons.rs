@@ -24,6 +24,8 @@
 //! - `node-pty`, a whole package the runtime replaces: terminals in Windows
 //!   pseudoconsoles, in `pty`.
 //! - `native-is-elevated` (`iselevated`): whether the process is elevated.
+//! - `windows-foreground-love` (`foreground_love`): lets another process
+//!   take the foreground.
 //! - `@vscode/native-watchdog` (`watchdog`): exits when a parent process
 //!   ends.
 
@@ -909,6 +911,44 @@ pub(crate) fn is_elevated(realm: &mut Realm) -> Object {
     exports
 }
 
+#[link(name = "user32", kind = "raw-dylib")]
+unsafe extern "system" {
+    fn AllowSetForegroundWindow(pid: u32) -> i32;
+}
+
+/// `windows-foreground-love`'s binding: `allowSetForegroundWindow(pid)`
+/// lets that process, or every process for no pid or 0, take the
+/// foreground.
+pub(crate) fn foreground_love(realm: &mut Realm) -> Object {
+    const ASFW_ANY: u32 = u32::MAX;
+    let exports = realm.object();
+    method(
+        realm,
+        &exports,
+        "allowSetForegroundWindow",
+        0,
+        |realm, args| {
+            let pid = match arg(args, 0) {
+                Value::Undefined => 0,
+                // N-API reads an int32 as C truncation does, and NaN as 0.
+                Value::Number(number) if number.is_finite() => number as i64 as i32,
+                Value::Number(_) => 0,
+                _ => {
+                    return Err(
+                        realm.throw(ErrorKind::Type, "Invalid number was passed as argument.")
+                    );
+                }
+            };
+            let pid = if pid == 0 { ASFW_ANY } else { pid as u32 };
+            // SAFETY: AllowSetForegroundWindow takes a process id by value.
+            Ok(Value::Boolean(
+                unsafe { AllowSetForegroundWindow(pid) } != 0,
+            ))
+        },
+    );
+    exports
+}
+
 const WAIT_TIMEOUT: u32 = 0x102;
 
 /// Whether a process is running, as the watchdog checks it.
@@ -1188,6 +1228,27 @@ mod tests {
             call(&mut realm, &module, "isElevated", &[]).unwrap(),
             Value::Boolean(_)
         ));
+        let foreground = foreground_love(&mut realm);
+        for pid in [
+            Value::Undefined,
+            Value::Number(f64::from(crate::platform::process_id())),
+        ] {
+            assert!(matches!(
+                call(&mut realm, &foreground, "allowSetForegroundWindow", &[pid]).unwrap(),
+                Value::Boolean(_)
+            ));
+        }
+        let error = call(
+            &mut realm,
+            &foreground,
+            "allowSetForegroundWindow",
+            &[Value::str("1")],
+        )
+        .unwrap_err();
+        assert_eq!(
+            message(&mut realm, error),
+            "Invalid number was passed as argument."
+        );
         assert!(process_running(crate::platform::process_id()));
         assert!(!process_running(0xFFFF_FFF0));
         let watchdog = watchdog(&mut realm);

@@ -23,6 +23,7 @@ pub const NATIVE_BINDINGS: &[&str] = &[
     "@vscode/windows-process-tree/windows_process_tree.node",
     "@vscode/windows-registry/winregistry.node",
     "native-is-elevated/iselevated.node",
+    "windows-foreground-love/foreground_love.node",
 ];
 
 /// The exports of the native module `name`. `node:` names are modules of
@@ -69,6 +70,9 @@ pub fn load(realm: &mut Realm, name: &str) -> Completion {
         "@parcel/watcher/watcher.node" => crate::native_addons::parcel_watcher::module(realm),
         "@vscode/native-watchdog/watchdog.node" => crate::native_addons::watchdog(realm),
         "native-is-elevated/iselevated.node" => crate::native_addons::is_elevated(realm),
+        "windows-foreground-love/foreground_love.node" => {
+            crate::native_addons::foreground_love(realm)
+        }
         "@vscode/windows-process-tree/windows_process_tree.node" => {
             crate::native_addons::process_tree::module(realm)
         }

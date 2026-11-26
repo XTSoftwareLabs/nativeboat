@@ -205,6 +205,14 @@ pub fn native_package(package: &str) -> Feature {
             Supported,
             "elevation comes from the process token; no addon is loaded",
         ),
+        "windows-foreground-love" => (
+            Supported,
+            "other processes are allowed the foreground with AllowSetForegroundWindow, as the addon does; no addon is loaded",
+        ),
+        "@vscode/fs-copyfile" => (
+            Supported,
+            "on Windows the package copies with Node's fs.copyFile and loads its addon only on macOS",
+        ),
         "@vscode/native-watchdog" => (
             Supported,
             "the process exits when its parent ends, as the addon checks; no addon is loaded",

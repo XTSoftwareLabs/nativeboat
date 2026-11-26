@@ -119,6 +119,7 @@ pub const NATIVE_BINDINGS: &[&str] = &[
     "@vscode/windows-process-tree/windows_process_tree.node",
     "@vscode/windows-registry/winregistry.node",
     "native-is-elevated/iselevated.node",
+    "windows-foreground-love/foreground_love.node",
 ];
 
 /// The package a module belongs to: the name after its path's last
