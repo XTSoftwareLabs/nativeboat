@@ -109,7 +109,7 @@ fn document_write_replaces_the_document_and_loads_it_again() {
       const events=[];document.addEventListener('DOMContentLoaded',()=>events.push('ready'));window.addEventListener('load',()=>events.push('load'));
       eq(document.open(),document,'open returns the document');eq(document.getElementById('old'),null,'emptied');eq(document.readyState,'loading','loading');
       document.write('<p id=new>a');document.writeln('b</p>');document.close();
-      eq(document.getElementById('new').textContent,'ab\n','written markup');eq(document.readyState,'complete','loaded');eq(events.join(),'ready,load','load events');
+      eq(document.getElementById('new').textContent,'ab','written markup');eq(document.body.lastChild.data,'\n','writeln ends its line');eq(document.readyState,'complete','loaded');eq(events.join(),'ready,load','load events');
       document.close();eq(events.length,2,'close without open does nothing');
     "#);
 }
