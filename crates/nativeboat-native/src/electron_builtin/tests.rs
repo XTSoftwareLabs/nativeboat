@@ -168,6 +168,14 @@ fn electron_exposes_native_net_fetch_and_session_proxy_configuration() {
         property(&mut realm, net.as_object().unwrap(), "fetch"),
         Value::Object(_)
     ));
+    let is_online = property(&mut realm, net.as_object().unwrap(), "isOnline");
+    let online = ops::call(&mut realm, &is_online, net.clone(), &[]).unwrap();
+    assert!(matches!(online, Value::Boolean(_)));
+    // The property agrees with the function.
+    assert!(matches!(
+        (property(&mut realm, net.as_object().unwrap(), "online"), online),
+        (Value::Boolean(a), Value::Boolean(b)) if a == b
+    ));
     let session = property(&mut realm, &exports, "session");
     let default_session = property(&mut realm, session.as_object().unwrap(), "defaultSession");
     let set_proxy = property(&mut realm, default_session.as_object().unwrap(), "setProxy");

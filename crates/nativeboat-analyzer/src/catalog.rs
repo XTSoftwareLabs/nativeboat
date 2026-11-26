@@ -301,7 +301,7 @@ const PARTIAL_ELECTRON: &[(&str, &[&str])] = &[
             "unregisterProtocol",
         ],
     ),
-    ("net", &["fetch", "request"]),
+    ("net", &["fetch", "request", "isOnline", "online"]),
     ("utilityProcess", &["fork"]),
     (
         "webContents",
