@@ -84,3 +84,20 @@ fn cached_child_collections_stay_live_without_replacing_their_identity() {
       p.textContent='';eq([nodes.length,elements.length,p.firstElementChild,p.lastElementChild],[0,0,null,null],'empty counts');
     "#);
 }
+
+#[test]
+fn iframes_reflect_their_attributes_and_have_no_browsing_context_yet() {
+    let mut page = fixture("<iframe id=f sandbox='allow-scripts' src='a.html'></iframe>");
+    page.check(r#"
+      const frame=document.getElementById('f');
+      eq(frame instanceof HTMLIFrameElement,true,'class');
+      eq(frame.sandbox.contains('allow-scripts'),true,'sandbox tokens');eq(frame.sandbox.length,1,'one token');
+      frame.sandbox.add('allow-forms');eq(frame.getAttribute('sandbox'),'allow-scripts allow-forms','token added');
+      frame.sandbox='allow-same-origin';eq(frame.getAttribute('sandbox'),'allow-same-origin','sandbox set');
+      eq(frame.srcdoc,'','no srcdoc');frame.srcdoc='<p>x</p>';eq(frame.getAttribute('srcdoc'),'<p>x</p>','srcdoc set');
+      eq(frame.loading,'eager','default loading');eq(frame.allowFullscreen,false,'no fullscreen');
+      frame.allowFullscreen=true;eq(frame.hasAttribute('allowfullscreen'),true,'fullscreen set');
+      frame.referrerPolicy='no-referrer';eq(frame.getAttribute('referrerpolicy'),'no-referrer','referrer policy');
+      eq(frame.contentWindow,null,'no window');eq(frame.contentDocument,null,'no document');
+    "#);
+}

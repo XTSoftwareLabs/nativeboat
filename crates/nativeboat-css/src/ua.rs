@@ -65,6 +65,7 @@ fieldset { margin: 0 2px; padding: 0.35em 0.75em 0.625em; border: 2px groove Thr
 legend { padding: 0 2px; }
 img, video, canvas, svg, iframe, embed, object { display: inline-block; }
 video { object-fit: contain; }
+iframe { border: 2px inset; }
 audio:not([controls]) { display: none; }
 input, textarea, select, button {
   display: inline-block;

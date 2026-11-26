@@ -674,6 +674,25 @@ fn image_sizes() {
 }
 
 #[test]
+fn iframe_sizes() {
+    // As Chromium sizes them: 300×150 with a 2px inset border, whatever
+    // their `src` names, unless their attributes or styles size them.
+    let (dom, result) = lay_out(
+        "<iframe id=empty></iframe><iframe id=page src=a.png></iframe>\
+         <iframe id=sized width=100 height=40></iframe><iframe id=styled style='width:50px'></iframe>",
+        "iframe { display: block }",
+    );
+    let size = |id: &str| {
+        let rect = rect(&dom, &result, id);
+        (rect.width, rect.height)
+    };
+    assert_eq!(size("empty"), (304.0, 154.0));
+    assert_eq!(size("page"), (304.0, 154.0));
+    assert_eq!(size("sized"), (104.0, 44.0));
+    assert_eq!(size("styled"), (54.0, 154.0));
+}
+
+#[test]
 fn video_sizes() {
     // As Electron 38 sizes them: with no picture yet, a video is 300×150
     // and keeps no ratio; then it takes its picture's size, its poster's
