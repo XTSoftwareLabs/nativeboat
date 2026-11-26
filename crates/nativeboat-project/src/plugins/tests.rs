@@ -159,3 +159,44 @@ fn plugin_settings_are_lists_of_globs() {
     assert_eq!(patterns(&serde_json::json!("a/*")), None);
     assert_eq!(patterns(&serde_json::json!(["a", 1])), None);
 }
+
+#[test]
+fn forked_modules_are_found_by_the_paths_programs_start_them_by() {
+    let fixture = Fixture::new(&[
+        (
+            "ext/node_modules/server/dist/node/workerMain.js",
+            "process.send('ready');",
+        ),
+        ("ext/tsconfig.base.json", "{}"),
+        ("ext/lsp/tsconfig.json", TSCONFIG),
+        ("ext/lsp/src/main.ts", "process.send('ready');"),
+    ]);
+    let root = fixture.root();
+    let entries: Vec<Entry> = [
+        "ext/node_modules/server/dist/node/workerMain",
+        "ext/lsp/out/main.js",
+    ]
+    .iter()
+    .filter_map(|path| module_entry(root, path))
+    .collect();
+    assert_eq!(
+        sources(&entries, root),
+        [
+            (
+                "ext/node_modules/server/dist/node/workerMain.js".to_owned(),
+                vec![
+                    "ext/node_modules/server/dist/node/workerMain.js".to_owned(),
+                    "ext/node_modules/server/dist/node/workerMain".to_owned()
+                ]
+            ),
+            (
+                "ext/lsp/src/main.ts".to_owned(),
+                vec![
+                    "ext/lsp/out/main.js".to_owned(),
+                    "ext/lsp/out/main".to_owned()
+                ]
+            ),
+        ]
+    );
+    assert!(module_entry(root, "ext/missing").is_none());
+}

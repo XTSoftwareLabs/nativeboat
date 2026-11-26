@@ -10,5 +10,8 @@
   ],
   "documents": [
     "src/vs/workbench/contrib/webview/browser/pre/*.html"
+  ],
+  "forks": [
+    "extensions/markdown-language-features/node_modules/vscode-markdown-languageserver/dist/node/workerMain"
   ]
 }

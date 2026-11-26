@@ -154,3 +154,25 @@ requires or imports its path. A package with its own `package.json` and
 lockfile gets its dependencies installed first. A package whose own build
 has not run is compiled from the TypeScript sources its `tsconfig.json`
 names.
+
+## Frame documents and forked modules
+
+Two more settings name files the build cannot find by following imports,
+in the same places as `plugins`:
+
+```json
+{
+  "documents": ["src/webview/pre/*.html"],
+  "forks": ["extensions/markdown/node_modules/md-server/dist/node/main"]
+}
+```
+
+`documents` takes file globs of HTML documents that the application shows
+in `<iframe>` elements by URLs it builds while it runs. Those documents are
+compiled like pages.
+
+`forks` takes the paths of modules that the application starts with
+`fork()` by paths it builds while it runs, such as a plugin's language
+server. A path may leave out `.js` and may name a file that a
+`tsconfig.json` emits from a TypeScript source. Plugin packages' `main`
+modules need no entry: they can already be forked.

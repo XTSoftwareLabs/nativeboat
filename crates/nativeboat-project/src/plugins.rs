@@ -91,6 +91,24 @@ pub fn entries(root: &Path, patterns: &[String]) -> (Vec<Entry>, Vec<String>) {
     (entries, warnings)
 }
 
+/// The entry of a module the program starts with `fork()` at `path`, a
+/// path from `root` as the program names it: with or without `.js`, and
+/// compiled from the TypeScript source a `tsconfig.json` emits it from when
+/// it has not been built. `None` when it has no file or source.
+pub fn module_entry(root: &Path, path: &str) -> Option<Entry> {
+    let emitted = emitted_file(&nativeboat_bundler::resolve::normalize(&root.join(path)));
+    let source = source_of_emitted(root, &emitted)?;
+    let path = crate::relative(root, &emitted);
+    let mut runtime_paths = vec![path.clone()];
+    if let Some(stem) = path.strip_suffix(".js") {
+        runtime_paths.push(stem.to_owned());
+    }
+    Some(Entry {
+        source,
+        runtime_paths,
+    })
+}
+
 /// Folders below `folder` down to `depth` levels, skipping dependencies
 /// and hidden folders.
 fn collect_folders(folder: &Path, depth: usize, found: &mut Vec<PathBuf>) {
