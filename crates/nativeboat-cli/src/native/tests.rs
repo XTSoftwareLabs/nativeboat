@@ -1341,7 +1341,12 @@ const named = function twice<T>(value: T): T[] { return [value, value]; };
 function plain(a: number) { return a; }
 const flat = (text: string) => text.replace(/\s+/g, ' ').trim();
 const unread = [plain][0];
+function outer(prefix: string) {
+  function inner(x: number) { return prefix + x; }
+  return String(inner);
+}
 console.log([
+  flat(outer('p')),
   flat(fib.toString()),
   flat(`${square}`),
   flat(String(named)),
@@ -1360,7 +1365,8 @@ console.log([
     assert!(executed.status.success(), "{executed:?}");
     assert_eq!(
         String::from_utf8_lossy(&executed.stdout),
-        "function fib(n) { return n <= 2 ? n : fib(n - 1) + fib(n - 2); }\n\
+        "function inner(x) { return prefix + x; }\n\
+         function fib(n) { return n <= 2 ? n : fib(n - 1) + fib(n - 2); }\n\
          (x) => x * x\n\
          function twice(value) { return [value, value]; }\n\
          async (y) => { await null; return y; }\n\
