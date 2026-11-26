@@ -1396,7 +1396,9 @@ class ServiceWorkerContainer extends EventTarget {
 }
 defineHandlers(ServiceWorkerContainer.prototype, ['controllerchange', 'message', 'messageerror']);
 const serviceReadyChecks = [];
-const serviceContainer = new ServiceWorkerContainer(CONSTRUCTING);
+// Made when a page first reads it.
+let serviceContainerObject = null;
+const serviceContainer = () => (serviceContainerObject ??= new ServiceWorkerContainer(CONSTRUCTING));
 
 // The connection to a registration's worker, made once: `found` is its id,
 // scope, script and state; `controlled` whether this page loaded with the
@@ -1414,7 +1416,7 @@ const serviceConnection = (found, controlled) => {
   const control = () => {
     if (serviceController === connection.worker) return;
     serviceController = connection.worker;
-    fire(serviceContainer, Event, 'controllerchange');
+    fire(serviceContainer(), Event, 'controllerchange');
   };
   port.onmessage = (event) => {
     const message = event.data;
@@ -1431,7 +1433,7 @@ const serviceConnection = (found, controlled) => {
         control();
         return;
       case 'message':
-        fire(serviceContainer, MessageEvent, 'message', {
+        fire(serviceContainer(), MessageEvent, 'message', {
           data: message.data,
           ports: event.ports,
           source: connection.worker,
@@ -1489,7 +1491,7 @@ const serviceWorkerFetch = (request) => {
   });
 };
 hidden(globalThis, '__nativeboatServiceWorkerFetch', serviceWorkerFetch);
-navigator.serviceWorker = serviceContainer;
+Object.defineProperty(navigator, 'serviceWorker', { get: serviceContainer, configurable: true, enumerable: true });
 
 const PARTS = Symbol('nativeboat.form');
 

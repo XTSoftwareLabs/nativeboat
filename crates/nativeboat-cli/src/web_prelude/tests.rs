@@ -24,7 +24,7 @@ fn the_prelude_runs_once_over_the_runtime_arguments() {
     assert!(prelude.text.contains("class DedicatedWorkerGlobalScope"));
     assert!(
         prelude.text.ends_with(
-            "})(worker[0], worker[1], worker[2], worker[3], worker[4], worker[5]);\n}\n"
+            "})(worker[0], worker[1], worker[2], worker[3], worker[4], worker[5], worker[6]);\n}\n"
         )
     );
     assert!(source(Path::new("C:/app/src/web-prelude.cjs")).is_none());
