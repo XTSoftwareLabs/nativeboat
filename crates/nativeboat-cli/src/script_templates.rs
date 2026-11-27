@@ -20,7 +20,7 @@ use oxc::ast::ast::{
 };
 use oxc::ast_visit::{Visit, walk};
 use oxc::parser::Parser;
-use oxc::span::{GetSpan, SourceType};
+use oxc::span::SourceType;
 use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
 
