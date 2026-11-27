@@ -1003,9 +1003,14 @@ pub fn app_relative_url(realm: &Realm, relative: &str) -> Completion {
     Ok(Value::str(&url))
 }
 
-/// The application directory, which is the directory containing the native
-/// executable for a packaged application.
+/// The application directory, with a trailing separator: `resources\app`
+/// beside the native executable, where a packaged Electron application has
+/// its files, or the executable's own directory when that has none, as a
+/// program run where it was compiled.
 pub(crate) fn app_path(realm: &Realm) -> Completion {
+    use core::sync::atomic::{AtomicU8, Ordering};
+    /// Zero until looked up, then 1 for `resources\app`, 2 for none.
+    static PACKAGED: AtomicU8 = AtomicU8::new(0);
     let Value::String(executable) = exec_path(realm)? else {
         unreachable!("the executable path is a string")
     };
@@ -1016,7 +1021,18 @@ pub(crate) fn app_path(realm: &Realm) -> Completion {
     else {
         return Ok(Value::str("."));
     };
-    Ok(Value::String(JsStr::from_units(&units[..=separator])))
+    let folder = JsStr::from_units(&units[..=separator]);
+    let packaged = folder.concat(&JsStr::from("resources\\app\\"));
+    let mut known = PACKAGED.load(Ordering::Relaxed);
+    if known == 0 {
+        known = if crate::fs_win::is_directory(packaged.units()) {
+            1
+        } else {
+            2
+        };
+        PACKAGED.store(known, Ordering::Relaxed);
+    }
+    Ok(Value::String(if known == 1 { packaged } else { folder }))
 }
 
 fn exec_path_text(realm: &Realm) -> Result<JsStr, Thrown> {

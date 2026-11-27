@@ -1204,7 +1204,16 @@ fn app(realm: &Realm) -> Object {
             "getAppPath",
             0,
             false,
-            |realm, _, _| crate::process_builtin::app_path(realm),
+            // Without the trailing separator, as Electron gives it.
+            |realm, _, _| {
+                let Value::String(path) = crate::process_builtin::app_path(realm)? else {
+                    unreachable!("the application path is a string")
+                };
+                let units = path.units();
+                let end = units.len()
+                    - usize::from(units.last().is_some_and(|unit| *unit == u16::from(b'\\')));
+                Ok(Value::String(crate::JsStr::from_units(&units[..end])))
+            },
         ))),
     );
     app.define(
