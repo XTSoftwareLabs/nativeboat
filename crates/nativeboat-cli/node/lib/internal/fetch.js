@@ -900,6 +900,13 @@ function fetch(input, init = undefined) {
     return Promise.reject(error);
   }
   if (request.signal.aborted) return Promise.reject(abortReason(request.signal));
+  // A page a service worker controls asks the worker first, as its `fetch`
+  // event (the Web API prelude's hook); without an answer the request goes
+  // on as usual.
+  const serviceWorker = globalThis.__nativeboatServiceWorkerFetch;
+  if (typeof serviceWorker === 'function') {
+    return serviceWorker(request).then((response) => response ?? run(request));
+  }
   return run(request);
 }
 

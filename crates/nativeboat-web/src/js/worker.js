@@ -10,7 +10,8 @@
 // `host` is the page's host with the worker's additions, `port` the handle
 // of the worker's end of its message channel, `errors` that of the channel
 // that reports its errors to the page, `url` the script's URL, `name` the
-// worker's name and `script` the text of a blob script, or null.
+// worker's name and `script` the text of a blob script, or null. A service
+// worker has no ports; `service` is its scope, and null for other workers.
 
 const global = globalThis;
 const own = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
@@ -204,6 +205,10 @@ class WorkerGlobalScope extends EventTarget {
   importScripts(...urls) {
     for (const each of urls) host.importScript(new URL(String(each), base).href);
   }
+
+  get origin() {
+    return originOf(scriptURL);
+  }
 }
 class DedicatedWorkerGlobalScope extends WorkerGlobalScope {
   constructor() {
@@ -273,6 +278,13 @@ for (const key of ['origin', 'protocol', 'host', 'hostname', 'port', 'pathname',
 }
 Object.defineProperty(WorkerLocation.prototype, 'href', { get() { return url; }, configurable: true, enumerable: true });
 const location = Object.create(WorkerLocation.prototype);
+// A URL's origin, with the scheme and host of a custom scheme's URL, as
+// Chromium gives those an application registers as standard.
+const originOf = (parsed) => {
+  if (!parsed) return 'null';
+  if (parsed.origin !== 'null') return parsed.origin;
+  return parsed.host ? `${parsed.protocol}//${parsed.host}` : 'null';
+};
 
 class WorkerNavigator {
   constructor() {
@@ -327,7 +339,8 @@ const listen = () =>
 const reportError = (error) => {
   const message = error instanceof Error ? `Uncaught ${error.name}: ${error.message}` : `Uncaught ${String(error)}`;
   if (fire(global, ErrorEvent, 'error', { cancelable: true, message, error, filename: url })) {
-    errors.postMessage({ message, filename: url, lineno: 0, colno: 0 });
+    if (errors) errors.postMessage({ message, filename: url, lineno: 0, colno: 0 });
+    else host.report(error);
   }
 };
 hidden(global, 'reportError', reportError);
@@ -1106,6 +1119,396 @@ const evaluate = (script) => {
   return run(statements, functions);
 };
 
+// Service workers. -----------------------------------------------------------------
+
+// A service worker's realm runs this scope instead of a dedicated worker's:
+// pages and frames in its scope connect to it with ports, as `host`'s
+// `connectServiceWorker` connects theirs, and it answers their messages and
+// the requests of the pages it controls with its events.
+const WAITS = Symbol('nativeboat.waits');
+const RESPONSE = Symbol('nativeboat.response');
+const CLIENT = Symbol('nativeboat.client');
+const CACHE = Symbol('nativeboat.cache');
+const invalidState = (message) => {
+  const error = new Error(message);
+  error.name = 'InvalidStateError';
+  return error;
+};
+class ExtendableEvent extends Event {
+  constructor(type, init = {}) {
+    super(type, init);
+    hidden(this, WAITS, []);
+  }
+
+  waitUntil(promise) {
+    this[WAITS].push(Promise.resolve(promise));
+  }
+}
+// An extendable event class whose instances carry their init's fields.
+const extendableClass = (name, fields) => {
+  const constructor = class extends ExtendableEvent {
+    constructor(type, init = {}) {
+      super(type, init);
+      const options = init === null || init === undefined ? {} : init;
+      const values = {};
+      for (const [key, fallback] of Object.entries(fields)) values[key] = options[key] === undefined ? fallback : options[key];
+      hidden(this, FIELDS, values);
+    }
+  };
+  for (const key of Object.keys(fields)) {
+    Object.defineProperty(constructor.prototype, key, {
+      get() { return this[FIELDS][key]; },
+      configurable: true,
+      enumerable: true,
+    });
+  }
+  Object.defineProperty(constructor, 'name', { value: name });
+  return constructor;
+};
+const ExtendableMessageEvent = extendableClass('ExtendableMessageEvent', { data: null, origin: '', lastEventId: '', source: null, ports: [] });
+const FetchEventBase = extendableClass('FetchEvent', {
+  request: null,
+  clientId: '',
+  resultingClientId: '',
+  replacesClientId: '',
+  handled: Promise.resolve(),
+  preloadResponse: Promise.resolve(undefined),
+});
+class FetchEvent extends FetchEventBase {
+  respondWith(response) {
+    if (this[RESPONSE]) throw invalidState("Failed to execute 'respondWith' on 'FetchEvent': The event has already been responded to.");
+    hidden(this, RESPONSE, { value: Promise.resolve(response) });
+    this.stopImmediatePropagation();
+  }
+}
+Object.defineProperty(FetchEvent, 'name', { value: 'FetchEvent' });
+
+// The pages connected to this worker, by client id; whether the worker
+// claimed them, which also claims the pages of its scope that connect
+// later, as they were its clients before.
+const clientsById = new Map();
+let claimed = false;
+class Client {
+  constructor() {
+    illegal();
+  }
+
+  get id() {
+    return this[CLIENT].id;
+  }
+
+  get url() {
+    return this[CLIENT].url;
+  }
+
+  get type() {
+    return this[CLIENT].type;
+  }
+
+  get frameType() {
+    return 'nested';
+  }
+
+  postMessage(data, transfer) {
+    this[CLIENT].port.postMessage({ kind: 'message', data }, movable(transfer));
+  }
+}
+class WindowClient extends Client {
+  get focused() {
+    return false;
+  }
+
+  get visibilityState() {
+    return 'visible';
+  }
+
+  focus() {
+    return Promise.resolve(this);
+  }
+
+  navigate() {
+    return Promise.resolve(null);
+  }
+}
+class Clients {
+  constructor() {
+    illegal();
+  }
+
+  get(id) {
+    return Promise.resolve(clientsById.get(String(id)));
+  }
+
+  matchAll(options = {}) {
+    const type = (options && options.type) || 'window';
+    const uncontrolled = !!(options && options.includeUncontrolled);
+    return Promise.resolve([...clientsById.values()].filter((client) =>
+      (type === 'all' || client[CLIENT].type === type) && (uncontrolled || client[CLIENT].controlled)));
+  }
+
+  openWindow() {
+    return Promise.resolve(null);
+  }
+
+  claim() {
+    if (serviceState !== 'activating' && serviceState !== 'activated') {
+      return Promise.reject(invalidState("Failed to execute 'claim' on 'Clients': Only the active worker can claim clients."));
+    }
+    claimed = true;
+    for (const client of clientsById.values()) {
+      if (client[CLIENT].controlled) continue;
+      client[CLIENT].controlled = true;
+      client[CLIENT].port.postMessage({ kind: 'claim' });
+    }
+    return Promise.resolve();
+  }
+}
+const clients = Object.create(Clients.prototype);
+
+// The worker's caches, in memory for as long as it runs.
+const cacheKey = (request) => (typeof request === 'string' ? new URL(request, url).href : request.url);
+const cachedResponse = (entry) => new Response([101, 103, 204, 205, 304].includes(entry.status) ? null : entry.body.slice(0), {
+  status: entry.status,
+  statusText: entry.statusText,
+  headers: entry.headers,
+});
+class Cache {
+  constructor() {
+    illegal();
+  }
+
+  async match(request) {
+    const entry = this[CACHE].get(cacheKey(request));
+    return entry ? cachedResponse(entry) : undefined;
+  }
+
+  async matchAll(request) {
+    if (request === undefined) return [...this[CACHE].values()].map(cachedResponse);
+    const entry = this[CACHE].get(cacheKey(request));
+    return entry ? [cachedResponse(entry)] : [];
+  }
+
+  async put(request, response) {
+    const body = await response.arrayBuffer();
+    this[CACHE].set(cacheKey(request), { status: response.status, statusText: response.statusText, headers: [...response.headers], body });
+  }
+
+  async add(request) {
+    await this.put(request, await fetch(request));
+  }
+
+  async addAll(requests) {
+    for (const request of requests) await this.add(request);
+  }
+
+  async delete(request) {
+    return this[CACHE].delete(cacheKey(request));
+  }
+
+  async keys() {
+    return [...this[CACHE].keys()].map((key) => new Request(key));
+  }
+}
+const cacheStores = new Map();
+class CacheStorage {
+  constructor() {
+    illegal();
+  }
+
+  async open(name) {
+    const key = String(name);
+    let cache = cacheStores.get(key);
+    if (!cache) {
+      cache = Object.create(Cache.prototype);
+      hidden(cache, CACHE, new Map());
+      cacheStores.set(key, cache);
+    }
+    return cache;
+  }
+
+  async has(name) {
+    return cacheStores.has(String(name));
+  }
+
+  async delete(name) {
+    return cacheStores.delete(String(name));
+  }
+
+  async keys() {
+    return [...cacheStores.keys()];
+  }
+
+  async match(request) {
+    for (const cache of cacheStores.values()) {
+      const found = await cache.match(request);
+      if (found) return found;
+    }
+    return undefined;
+  }
+}
+const caches = Object.create(CacheStorage.prototype);
+
+class ServiceWorkerGlobalScope extends WorkerGlobalScope {
+  constructor() {
+    super();
+    illegal();
+  }
+
+  get clients() {
+    return clients;
+  }
+
+  get registration() {
+    return serviceRegistration;
+  }
+
+  get serviceWorker() {
+    return serviceRegistration.active ?? serviceRegistration.installing;
+  }
+
+  skipWaiting() {
+    return Promise.resolve();
+  }
+}
+defineHandlers(ServiceWorkerGlobalScope.prototype, ['install', 'activate', 'fetch', 'message', 'messageerror']);
+
+// This worker as its own scope sees it, and its registration.
+let serviceState = 'parsed';
+const serviceWorkerSelf = {
+  get scriptURL() { return url; },
+  get state() { return serviceState; },
+  postMessage() {},
+  addEventListener() {},
+  removeEventListener() {},
+};
+const serviceRegistration = {
+  get scope() { return service; },
+  get installing() { return serviceState === 'parsed' || serviceState === 'installing' ? serviceWorkerSelf : null; },
+  get waiting() { return serviceState === 'installed' ? serviceWorkerSelf : null; },
+  get active() { return serviceState === 'activating' || serviceState === 'activated' ? serviceWorkerSelf : null; },
+  update: () => Promise.resolve(serviceRegistration),
+  unregister: () => Promise.resolve(false),
+  addEventListener() {},
+  removeEventListener() {},
+};
+
+const serviceStateIs = (next) => {
+  serviceState = next;
+  host.serviceWorkerState(next);
+  for (const client of clientsById.values()) client[CLIENT].port.postMessage({ kind: 'state', state: next });
+};
+// Fires an extendable event and waits for what its listeners extended it
+// with; whether all of that fulfilled.
+const extended = async (event) => {
+  event[EVENT].trusted = true;
+  global.dispatchEvent(event);
+  try {
+    await Promise.all(event[WAITS]);
+    return true;
+  } catch (error) {
+    reportError(error);
+    return false;
+  }
+};
+// Installs and activates the worker once its script ran: there is never an
+// older worker for it to wait for.
+const serviceLifecycle = async () => {
+  serviceStateIs('installing');
+  if (!(await extended(new ExtendableEvent('install')))) {
+    serviceStateIs('redundant');
+    return;
+  }
+  serviceStateIs('installed');
+  serviceStateIs('activating');
+  await extended(new ExtendableEvent('activate'));
+  serviceStateIs('activated');
+};
+
+// A request of a page this worker controls: the worker's `fetch` event,
+// answered with the response a listener gave, or with none.
+const serviceFetch = (client, message) => {
+  const reply = (answer, transfer) => client[CLIENT].port.postMessage({ kind: 'response', id: message.id, ...answer }, transfer);
+  let event;
+  try {
+    const request = new Request(message.url, { method: message.method, headers: message.headers });
+    event = new FetchEvent('fetch', { request, clientId: client[CLIENT].id, cancelable: true });
+  } catch (error) {
+    reply({ fallback: true });
+    return;
+  }
+  event[EVENT].trusted = true;
+  global.dispatchEvent(event);
+  const responded = event[RESPONSE];
+  if (!responded) {
+    reply({ fallback: true });
+    return;
+  }
+  responded.value
+    .then(async (response) => {
+      if (!(response instanceof Response)) throw new TypeError('the service worker responded with a value that is not a Response');
+      const body = await response.arrayBuffer();
+      reply({ status: response.status, statusText: response.statusText, headers: [...response.headers], body });
+    })
+    .catch((error) => reply({ error: String(error && error.message !== undefined ? error.message : error) }));
+};
+
+// A page that connects: its messages and requests reach this worker.
+const serviceClient = (handle, id, clientURL, type) => {
+  const client = Object.create((type === 'window' ? WindowClient : Client).prototype);
+  hidden(client, CLIENT, { port: handle, id, url: clientURL, type, controlled: false });
+  clientsById.set(id, client);
+  handle.bind({
+    _deliver(data, ports) {
+      switch (data && data.kind) {
+        case 'hello':
+          client[CLIENT].controlled = !!data.controlled;
+          handle.postMessage({ kind: 'state', state: serviceState });
+          if (claimed && !client[CLIENT].controlled) {
+            client[CLIENT].controlled = true;
+            handle.postMessage({ kind: 'claim' });
+          }
+          return;
+        case 'message': {
+          let origin = 'null';
+          try {
+            origin = originOf(new URL(clientURL));
+          } catch {}
+          const event = new ExtendableMessageEvent('message', { data: data.data, source: client, ports: Object.freeze([...ports]), origin });
+          extended(event);
+          return;
+        }
+        case 'fetch':
+          serviceFetch(client, data);
+          return;
+      }
+    },
+    _peerClosed() {
+      clientsById.delete(id);
+    },
+  });
+};
+
+if (service != null) {
+  Object.setPrototypeOf(global, ServiceWorkerGlobalScope.prototype);
+  for (const [key, value] of Object.entries({
+    caches,
+    clients,
+    registration: serviceRegistration,
+    ServiceWorkerGlobalScope,
+    ExtendableEvent,
+    ExtendableMessageEvent,
+    FetchEvent,
+    Client,
+    Clients,
+    WindowClient,
+    Cache,
+    CacheStorage,
+  })) {
+    hidden(global, key, value);
+  }
+  hidden(global, '__nativeboat_service_client', serviceClient);
+}
+
 // The worker's script. ------------------------------------------------------------
 
 (async () => {
@@ -1113,6 +1516,10 @@ const evaluate = (script) => {
     if (script === null) await host.import(url);
     else await evaluate(script);
   } finally {
-    listen();
+    if (service == null) listen();
   }
-})().catch(reportError);
+  if (service != null) await serviceLifecycle();
+})().catch((error) => {
+  if (service != null) serviceStateIs('redundant');
+  reportError(error);
+});

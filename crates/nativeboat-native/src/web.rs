@@ -367,6 +367,7 @@ fn host(realm: &Realm) -> Object {
     ] {
         host.define(Key::name(name), Property::hidden(Value::Object(function)));
     }
+    crate::service_worker::define(realm, &host);
     host
 }
 

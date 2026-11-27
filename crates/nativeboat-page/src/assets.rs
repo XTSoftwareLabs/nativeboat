@@ -41,7 +41,7 @@ fn scheme_end(url: &str) -> Option<usize> {
 /// `url` resolved against `base`, an absolute URL with a path, as URLs of
 /// hierarchical schemes resolve: a path from `/` replaces the base's path,
 /// another replaces its last segment, and `.` and `..` segments go.
-fn join_url(base: &str, url: &str) -> Option<String> {
+pub(crate) fn join_url(base: &str, url: &str) -> Option<String> {
     let colon = scheme_end(base)?;
     let after = &base[colon + 1..];
     let (origin, path) = match after.strip_prefix("//") {
@@ -302,7 +302,14 @@ pub(crate) fn rebase_urls(css: &str, sheet: &str) -> String {
                     .all(|byte| byte.is_ascii_alphanumeric() || b"+-.".contains(&byte))
             });
         rebased.push_str(&rest[..start]);
-        match relative.then(|| locate(sheet, url)).flatten() {
+        // A network sheet's URLs resolve against its URL.
+        let located = relative
+            .then(|| {
+                locate(sheet, url)
+                    .or_else(|| is_network(sheet).then(|| join_url(sheet, url)).flatten())
+            })
+            .flatten();
+        match located {
             Some(path) => rebased.push_str(&path.replace('\\', "/")),
             None => rebased.push_str(&body[..end]),
         }

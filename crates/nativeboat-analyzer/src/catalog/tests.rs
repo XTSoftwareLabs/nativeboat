@@ -403,16 +403,11 @@ fn web_apis() {
         "web-crypto",
         "websocket",
         "worker",
+        "service-worker",
         "custom-elements",
         "shadow-dom",
     ];
-    let unsupported = [
-        "webgl",
-        "service-worker",
-        "indexeddb",
-        "web-audio",
-        "media-devices",
-    ];
+    let unsupported = ["webgl", "indexeddb", "web-audio", "media-devices"];
     for api in supported {
         assert_eq!(support(web(api)), Supported, "{api}");
     }

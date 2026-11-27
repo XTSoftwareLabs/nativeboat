@@ -1727,7 +1727,8 @@ native_sources!(
     "web/media.rs",
     "web/page.rs",
     "worker.rs",
-    "frame.rs"
+    "frame.rs",
+    "service_worker.rs"
 );
 
 // The generated application toolchain cannot run Cargo or fetch crates. Keep
