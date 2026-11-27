@@ -99,6 +99,15 @@ pub fn alias(name: &str) -> Option<PropertyId> {
         "max-inline-size" => P::MaxWidth,
         "max-block-size" => P::MaxHeight,
         "word-wrap" => P::OverflowWrap,
+        // Chromium's older names of the flow-relative margins and paddings.
+        "-webkit-margin-before" => P::MarginTop,
+        "-webkit-margin-after" => P::MarginBottom,
+        "-webkit-margin-start" => P::MarginLeft,
+        "-webkit-margin-end" => P::MarginRight,
+        "-webkit-padding-before" => P::PaddingTop,
+        "-webkit-padding-after" => P::PaddingBottom,
+        "-webkit-padding-start" => P::PaddingLeft,
+        "-webkit-padding-end" => P::PaddingRight,
         "grid-column-gap" => P::ColumnGap,
         "grid-row-gap" => P::RowGap,
         _ => return None,
@@ -141,6 +150,12 @@ pub fn longhands_of(name: &str) -> Option<Vec<PropertyId>> {
         "padding-block" => &[P::PaddingTop, P::PaddingBottom],
         "inset-inline" => &[P::Left, P::Right],
         "inset-block" => &[P::Top, P::Bottom],
+        "border-inline-width" => &[P::BorderLeftWidth, P::BorderRightWidth],
+        "border-inline-style" => &[P::BorderLeftStyle, P::BorderRightStyle],
+        "border-inline-color" => &[P::BorderLeftColor, P::BorderRightColor],
+        "border-block-width" => &[P::BorderTopWidth, P::BorderBottomWidth],
+        "border-block-style" => &[P::BorderTopStyle, P::BorderBottomStyle],
+        "border-block-color" => &[P::BorderTopColor, P::BorderBottomColor],
         "border" => &[
             P::BorderTopWidth,
             P::BorderRightWidth,
@@ -314,6 +329,12 @@ pub fn expand(name: &str, values: &[ComponentValue]) -> Option<Longhands> {
         | "padding-block"
         | "inset-inline"
         | "inset-block"
+        | "border-inline-width"
+        | "border-inline-style"
+        | "border-inline-color"
+        | "border-block-width"
+        | "border-block-style"
+        | "border-block-color"
         | "gap"
         | "grid-gap"
         | "place-items"
