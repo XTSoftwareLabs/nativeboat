@@ -1,6 +1,6 @@
 # Compatibility
 
-What NativeBoat 0.1.0-alpha.6 supports in an Electron application, in three
+What NativeBoat 0.1.0-alpha.7 supports in an Electron application, in three
 levels:
 
 - **Supported**: works as in Electron.
@@ -50,6 +50,7 @@ It does not build for macOS or Linux.
 | Function source text (`toString`) | Partial | functions whose text the application's code reads, with `toString`, `String()`, a template or by joining it to a string, give their source without TypeScript's types; other functions give no source text |
 | Standard decorators | Not supported | only TypeScript's `experimentalDecorators` are compiled; class `accessor` fields are not compiled either |
 | `eval` and `new Function` with source text | Not supported | code cannot be made from strings while the application runs |
+| Scripts that pages build as text and insert as `<script>` elements | Partial | a script built from a template literal in the application's code that creates script elements runs; other script text does not |
 | Remote scripts | Not supported | scripts must be part of the application |
 
 ## Electron APIs
@@ -176,7 +177,8 @@ conic gradients draw as linear gradients, and `isPointInPath` and
 | SVG | Partial | shapes, paths, text, markers, `use` and dashed strokes are drawn, and SVG files used as images (`img` sources and backgrounds) are drawn; gradients, patterns, clip paths, masks, filters, images, text on a path and SVG animations are not |
 | `dialog` | Partial | `show()` and `close()` work; `showModal()` opens the dialog in place, without the top layer, a backdrop or making the rest of the page inert |
 | `video`, `audio` | Partial | a video shows its poster or its first frame, at its size, and media loads its duration with Chromium's loading events, for formats Windows has codecs for (such as MP4 with H.264, and MP3); media does not play, and controls and captions are not shown |
-| `iframe`, `webview` | Not supported | |
+| `iframe` | Partial | frames show the application's own HTML documents and run their compiled scripts, with `contentWindow`, `contentDocument` and `postMessage`; web pages from other sites are not shown |
+| `webview` | Not supported | |
 | `object`, `embed` | Not supported | |
 
 ## CSS
@@ -188,6 +190,7 @@ conic gradients draw as linear gradients, and `isPointInPath` and
 | Floats | Supported | |
 | Tables (`display: table`) | Supported | |
 | `display: contents` | Supported | |
+| Container queries | Partial | size queries work, also for `::before` and `::after`; style and scroll-state queries do not |
 | `@media`, `@supports`, `@import` | Supported | including stylesheets imported from packages |
 | Cascade layers (`@layer`), `@property` | Supported | |
 | `box-shadow` | Supported | |
@@ -197,7 +200,7 @@ conic gradients draw as linear gradients, and `isPointInPath` and
 | Transitions, `@keyframes` animations | Supported | |
 | `clip-path` | Supported | shapes, boxes, `path()` and the document's SVG `<clipPath>` elements; see the limit below |
 | Masks (`mask`, `mask-image` and the other `mask-*` properties, also with `-webkit-`) | Supported | images, SVG images and gradients; see the limit below |
-| `font-variant-numeric`, `font-feature-settings` | Supported | |
+| `font-variant-numeric`, `font-feature-settings` | Partial | applied to system fonts; text in web fonts is drawn without the features |
 | Scrollbar styling (`::-webkit-scrollbar` parts, `scrollbar-color`, `scrollbar-width`) | Supported | background images in scrollbar parts are not drawn |
 | Linear gradients | Supported | one opaque layer with an angle or side and increasing percentage stops |
 | Other gradients | Partial | corner directions, transparent stops, length or hard stops, repeating and radial gradients and multiple layers are approximate; conic gradients are not drawn |
@@ -212,7 +215,6 @@ conic gradients draw as linear gradients, and `isPointInPath` and
 | `mix-blend-mode` other than `normal` | Not supported | |
 | `filter: url(...)` | Not supported | |
 | Multi-column layout | Not supported | |
-| Container queries | Not supported | |
 
 ## Known differences
 

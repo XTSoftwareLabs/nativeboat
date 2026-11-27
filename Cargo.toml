@@ -4,7 +4,7 @@ members = ["crates/*"]
 exclude = ["crates/nativeboat-regexp-build/overlays/regress"]
 
 [workspace.package]
-version = "0.1.0-alpha.6"
+version = "0.1.0-alpha.7"
 license = "MIT"
 edition = "2024"
 rust-version = "1.96"
