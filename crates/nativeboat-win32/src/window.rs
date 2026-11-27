@@ -1794,17 +1794,18 @@ fn paint_into(window: WindowId, id: u64, dc: HDC, area: RECT) {
     if tracing {
         let copied = microseconds();
         crate::trace::line(&alloc::format!(
-            "{started} paint surface {id} {width}x{height} at {},{}: render {:.1} ms, copy {:.1} ms",
+            "{started} paint surface {id} {width}x{height} at {},{}: render {:.1} ms, copy {:.1} ms{}",
             area.left,
             area.top,
             (rendered - started) as f64 / 1000.0,
             (copied - rendered) as f64 / 1000.0,
+            crate::render::item_times(),
         ));
     }
 }
 
 /// The time in microseconds, for paint traces.
-fn microseconds() -> u64 {
+pub(crate) fn microseconds() -> u64 {
     let mut now = FILETIME::default();
     // SAFETY: reads the clock into a local.
     unsafe {

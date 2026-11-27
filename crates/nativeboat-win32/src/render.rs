@@ -1974,11 +1974,62 @@ impl Painter {
                 // No visible content needs no backdrop, but scopes still
                 // execute to preserve the display list's state transitions.
                 self.push_opacity_in(*opacity, region);
-            } else {
-                self.item(&items[index]);
+            } else if !self.outside_area(&items[index]) {
+                if crate::trace::painting() {
+                    let started = crate::window::microseconds();
+                    self.item(&items[index]);
+                    let kind = item_kind(&items[index]);
+                    ITEM_TIMES[kind].fetch_add(
+                        crate::window::microseconds().saturating_sub(started),
+                        core::sync::atomic::Ordering::Relaxed,
+                    );
+                } else {
+                    self.item(&items[index]);
+                }
             }
             index += 1;
         }
+    }
+
+    /// Whether an item draws only outside the area being painted, so that
+    /// drawing it changes nothing: a caret's blink in an editor repaints a
+    /// few pixels, which shadows, images and text elsewhere need not cost.
+    fn outside_area(&self, item: &DisplayItem) -> bool {
+        let Some(area) = self.area else {
+            return false;
+        };
+        if !matches!(
+            item,
+            DisplayItem::Fill { .. }
+                | DisplayItem::Gradient { .. }
+                | DisplayItem::Border { .. }
+                | DisplayItem::Text { .. }
+                | DisplayItem::Path { .. }
+                | DisplayItem::Canvas { .. }
+                | DisplayItem::Image { .. }
+                | DisplayItem::Shadow { .. }
+                | DisplayItem::Backdrop { .. }
+        ) {
+            return false;
+        }
+        let Some(content) = bounds::bounds(core::slice::from_ref(item), self.current()) else {
+            return true;
+        };
+        let edges = [
+            (content[0] - self.scroll.0) * self.scale,
+            (content[1] - self.scroll.1) * self.scale,
+            (content[2] - self.scroll.0) * self.scale,
+            (content[3] - self.scroll.1) * self.scale,
+        ];
+        if !edges.iter().all(|edge| edge.is_finite()) {
+            return false;
+        }
+        // A pixel of slack on each side, as rounding at fractional scales
+        // may reach it.
+        edges[2] + 1.0 < area.left as f32
+            || edges[0] - 1.0 > area.right as f32
+            || edges[3] + 1.0 < area.top as f32
+            || edges[1] - 1.0 > area.bottom as f32
     }
 
     /// The device pixels drawing can change: the clip within the target.
@@ -2815,4 +2866,50 @@ fn spaced_steps(dc: HDC, piece: &[u16], spacing: f32) -> Option<Vec<i32>> {
             })
             .collect(),
     )
+}
+
+/// The kinds of display items the paint trace times, by name.
+const ITEM_KINDS: [&str; 10] = [
+    "fill", "gradient", "border", "text", "path", "canvas", "image", "shadow", "backdrop", "other",
+];
+
+/// Microseconds each kind of item took to draw since the paint trace last
+/// reported them.
+static ITEM_TIMES: [core::sync::atomic::AtomicU64; 10] =
+    [const { core::sync::atomic::AtomicU64::new(0) }; 10];
+
+fn item_kind(item: &DisplayItem) -> usize {
+    match item {
+        DisplayItem::Fill { .. } => 0,
+        DisplayItem::Gradient { .. } => 1,
+        DisplayItem::Border { .. } => 2,
+        DisplayItem::Text { .. } => 3,
+        DisplayItem::Path { .. } => 4,
+        DisplayItem::Canvas { .. } => 5,
+        DisplayItem::Image { .. } => 6,
+        DisplayItem::Shadow { .. } => 7,
+        DisplayItem::Backdrop { .. } => 8,
+        _ => 9,
+    }
+}
+
+/// The paint trace's report of what each kind of item took to draw since
+/// the last report, slowest first, and the counts reset.
+pub(crate) fn item_times() -> alloc::string::String {
+    let mut times: alloc::vec::Vec<(f64, &str)> = ITEM_TIMES
+        .iter()
+        .zip(ITEM_KINDS)
+        .map(|(time, kind)| {
+            (
+                time.swap(0, core::sync::atomic::Ordering::Relaxed) as f64 / 1000.0,
+                kind,
+            )
+        })
+        .filter(|(time, _)| *time >= 0.1)
+        .collect();
+    times.sort_by(|a, b| b.0.total_cmp(&a.0));
+    times
+        .iter()
+        .map(|(time, kind)| alloc::format!(", {kind} {time:.1} ms"))
+        .collect()
 }
