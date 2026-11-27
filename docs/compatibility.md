@@ -1,6 +1,6 @@
 # Compatibility
 
-What NativeBoat 0.1.0-alpha.5 supports in an Electron application, in three
+What NativeBoat 0.1.0-alpha.6 supports in an Electron application, in three
 levels:
 
 - **Supported**: works as in Electron.

@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.1.0-alpha.6
+
+- Fixes builds that failed with `error[E0502]: cannot borrow *realm as
+  mutable` in a generated crate, as MarkText's did with 0.1.0-alpha.5:
+  functions whose source text the program reads compile again.
+- Pages show `<iframe>` documents: each frame runs its document's compiled
+  scripts in a realm of its own, painted and sized at the frame's box,
+  with `contentWindow` and `contentDocument` for same-origin frames,
+  `postMessage` between frames, `load` events, `requestAnimationFrame` and
+  `document.open`, `write` and `close`. Frames are 300 by 150 pixels with
+  an inset border unless styled. The `documents` setting names HTML files
+  that pages show in frames by URLs they build while they run.
+- Functions run in the realm that made them, so a frame calling its
+  page's listener sees the page's globals.
+- CSS container queries: `container-type`, `container-name`, the
+  `container` shorthand and `@container` rules with size conditions, also
+  for `::before` and `::after`.
+- `PerformanceObserver` reports the page's marks and measures.
+- `net.isOnline()` and `net.online` report whether Windows has a network
+  connection, and `windows-foreground-love` and `@vscode/fs-copyfile` are
+  supported native modules.
+- Paths through `app.asar` or `*.asar.unpacked` read the folders those
+  archives were packed from, as packaged Electron applications expect.
+- The `forks` setting names modules a program starts with `fork()` by
+  paths it builds while it runs, and forked modules get files at those
+  paths, so programs that check a module exists before they fork it work.
+- The `scripts` setting names scripts that pages load by URLs they build
+  while they run, such as those of HTML the application generates, with
+  the source each compiles from.
+- `createRequire(import.meta.url)` kept as a value, as esbuild's ESM
+  bundles keep it, requires modules by name when the application runs.
+- Packages around plugin packages that keep what they share, such as an
+  editor's `extensions/node_modules`, get their dependencies installed.
+
 ## 0.1.0-alpha.5
 
 - NativeBoat is open source under the MIT license. Its source, releases and
