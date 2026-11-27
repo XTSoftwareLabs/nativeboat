@@ -83,6 +83,10 @@ jobs:
         with:
           name: vscode-result
           path: ${{ env.ROOT }}\result
+      - name: Keep the linker map with the application
+        if: steps.build.outputs.state == 'built'
+        shell: pwsh
+        run: Copy-Item "$env:ROOT\native.map" "$env:ROOT\out\native.map" -ErrorAction SilentlyContinue
       - uses: actions/upload-artifact@v4
         if: steps.build.outputs.state == 'built'
         with:

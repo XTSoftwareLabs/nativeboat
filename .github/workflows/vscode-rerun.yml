@@ -16,6 +16,12 @@ on:
       wait_seconds:
         description: Seconds to run before the snapshot
         default: '120'
+      sample_seconds:
+        description: Seconds to sample the main process's stacks for (0 for none), into stacks.txt
+        default: '0'
+      sample_delay:
+        description: Seconds after the start before sampling
+        default: '20'
 
 permissions:
   contents: read
@@ -35,14 +41,34 @@ jobs:
           path: ${{ env.ROOT }}\out
           run-id: ${{ inputs.run_id }}
           github-token: ${{ github.token }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: Run VS Code
         shell: pwsh
         env:
           SETTINGS: ${{ inputs.environment }}
           WAIT: ${{ inputs.wait_seconds }}
+          SAMPLE: ${{ inputs.sample_seconds }}
+          DELAY: ${{ inputs.sample_delay }}
         run: |
+          # Stack samples of the main process, while VS Code runs.
+          $sampler = $null
+          if ([int]$env:SAMPLE -gt 0) {
+            New-Item -ItemType Directory -Force "$env:ROOT\result" | Out-Null
+            $sampler = Start-Job -ArgumentList $env:ROOT, $env:GITHUB_WORKSPACE, ([int]$env:DELAY), ([int]$env:SAMPLE) -ScriptBlock {
+              param($root, $repository, $delay, $seconds)
+              Start-Sleep $delay
+              $main = Get-CimInstance Win32_Process |
+                Where-Object { $_.CommandLine -like '*--user-data-dir*' -and $_.ExecutablePath -like "$root\out\*" } |
+                Select-Object -First 1
+              python "$repository\scripts\sample-stacks.py" --pid $main.ProcessId --map "$root\out\native.map" `
+                --out "$root\result\stacks.txt" --seconds $seconds 2>&1
+            }
+          }
           ./scripts/compat/vscode-run.ps1 -Out "$env:ROOT\out" -OutputDirectory "$env:ROOT\result" -Folder $env:GITHUB_WORKSPACE `
             -WaitSeconds $env:WAIT -Environment ($env:SETTINGS -split ';')
+          if ($sampler) { Receive-Job $sampler -Wait | Select-Object -Last 30 }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
