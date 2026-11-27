@@ -2329,10 +2329,16 @@ fn builds_and_executes_source_graph_with_aliases_types_and_import_conditions() {
         .map(|entry| entry.unwrap().file_name().into_string().unwrap())
         .collect();
     outputs.sort();
-    // and the application's own files, without the build's configuration.
+    // and the application's own files in resources/app, without the
+    // build's configuration.
     assert_eq!(
         outputs,
-        ["THIRD-PARTY-NOTICES.txt", "native-test.exe", "package.json"]
+        ["THIRD-PARTY-NOTICES.txt", "native-test.exe", "resources"]
+    );
+    assert!(
+        fixture
+            .path("native-output/resources/app/package.json")
+            .is_file()
     );
     assert!(!fixture.path("dist").exists());
     // Electron graphs link the host message loop and readiness exports.
@@ -5532,7 +5538,7 @@ fn reports_output_staging_write_and_publication_failures() {
     let entries: Vec<_> = std::fs::read_dir(fixture.path("native-output"))
         .unwrap()
         .map(|entry| entry.unwrap().path())
-        .filter(|path| path.file_name().unwrap() != "package.json")
+        .filter(|path| path.file_name().unwrap() != "resources")
         .collect();
     assert_eq!(entries.len(), 1, "{entries:?}");
     let preserved = entries[0].clone();
