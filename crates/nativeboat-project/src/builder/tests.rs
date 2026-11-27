@@ -530,6 +530,37 @@ fn installed_dependencies_ship_their_files_beside_the_executable() {
     );
 }
 
+/// Test folders and their fixtures, style sheet sources and build
+/// leftovers stay behind, and the root's `files` patterns apply to the
+/// packages' files as electron-builder applies them.
+#[test]
+fn tests_sources_and_excluded_package_files_stay_behind() {
+    let fixture = Fixture::new(&[
+        ("package.json", r#"{"dependencies": {"a": "1"}}"#),
+        ("static/logo.png", "png"),
+        ("test/e2e/data/sample.md", ""),
+        ("test/unit/data/table.json", "{}"),
+        ("src/__tests__/fixture.json", "{}"),
+        ("node_modules/a/package.json", "{}"),
+        ("node_modules/a/fonts/a.woff2", "font"),
+        ("node_modules/a/scss/a.scss", ""),
+        ("node_modules/a/a.js.flow", ""),
+        ("node_modules/a/vendor/build.py", ""),
+        ("node_modules/a/vendor/data.bin", "bin"),
+    ]);
+    let config = serde_json::json!({ "files": ["!node_modules/a/vendor"] });
+    let files = application_files(fixture.root(), &config, &[]);
+    assert_eq!(
+        destinations(&files),
+        [
+            "node_modules/a/fonts/a.woff2",
+            "node_modules/a/package.json",
+            "package.json",
+            "static/logo.png",
+        ]
+    );
+}
+
 #[test]
 fn exclusion_only_and_missing_patterns_take_everything_but_build_resources() {
     let fixture = Fixture::new(&[
