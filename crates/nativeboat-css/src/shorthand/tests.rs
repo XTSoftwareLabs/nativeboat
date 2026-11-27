@@ -590,3 +590,33 @@ fn grid_placement_shorthands() {
     );
     assert_eq!(expanded("grid-area", "1 / 2 / 3 / 4 / 5"), None);
 }
+
+/// The flow-relative border pairs set the two sides of a horizontal
+/// left-to-right box, one value setting both; Chromium's older margin and
+/// padding names are aliases.
+#[test]
+fn flow_relative_border_pairs_and_webkit_margin_names() {
+    assert_eq!(
+        expanded("border-inline-width", "1px 2px"),
+        Some(pairs(&[
+            ("border-left-width", "1px"),
+            ("border-right-width", "2px")
+        ]))
+    );
+    assert_eq!(
+        expanded("border-block-color", "red"),
+        Some(pairs(&[
+            ("border-top-color", "red"),
+            ("border-bottom-color", "red")
+        ]))
+    );
+    assert_eq!(
+        expanded("border-block-style", "solid dashed"),
+        Some(pairs(&[
+            ("border-top-style", "solid"),
+            ("border-bottom-style", "dashed")
+        ]))
+    );
+    assert_eq!(alias("-webkit-margin-before"), Some(P::MarginTop));
+    assert_eq!(alias("-webkit-padding-end"), Some(P::PaddingRight));
+}
