@@ -341,6 +341,14 @@ pub(super) const OPERATIONS: &[(&str, PageOp)] = &[
     ("loadScript", |_, realm, args| {
         realm.load_script(arg(args, 0))
     }),
+    // A script the page inserts with text, run now as the template it was
+    // made from compiled it: whether one did.
+    ("runTemplate", |_, realm, args| {
+        let text = text(realm, args, 0)?;
+        Ok(Value::Boolean(crate::web::run_script_template(
+            realm, &text,
+        )?))
+    }),
     // A classic script the page inserts, by URL, run now: whether one was
     // compiled for it.
     ("runScript", |_, realm, args| {

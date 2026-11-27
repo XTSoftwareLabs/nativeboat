@@ -27,8 +27,9 @@ const documentTypes = new WeakMap(), implementations = new WeakMap();
 // when the script has run, or `error` when it is not compiled or throws.
 // A classic script runs in a task of its own and gets `load` right after,
 // before another script runs, as AMD loaders that take the `define` call a
-// script made when it loads expect. Scripts parsed from markup do not run,
-// as in browsers.
+// script made when it loads expect. A classic script with text runs when it
+// is inserted, as the script template its text was made from compiled it.
+// Scripts parsed from markup do not run, as in browsers.
 const startedScripts = new WeakSet();
 const scriptTypes = /^(?:(?:text|application)\/(?:java|ecma)script|module)$/i;
 const startScripts = (node) => {
@@ -37,7 +38,19 @@ const startScripts = (node) => {
   for (const script of scripts) {
     const src = script.getAttribute('src');
     const type = script.getAttribute('type');
-    if (startedScripts.has(script) || src === null || (type && type.trim() && !scriptTypes.test(type.trim()))) continue;
+    if (startedScripts.has(script) || (type && type.trim() && !scriptTypes.test(type.trim()))) continue;
+    if (src === null) {
+      const text = script.textContent;
+      const classic = !(type && type.trim().toLowerCase() === 'module');
+      if (!classic || !text.trim() || typeof page.runTemplate !== 'function') continue;
+      startedScripts.add(script);
+      try {
+        page.runTemplate(text);
+      } catch (error) {
+        host.report(error, false);
+      }
+      continue;
+    }
     startedScripts.add(script);
     if (!(type && type.trim().toLowerCase() === 'module') && typeof page.runScript === 'function') {
       const url = new URL(src, document.baseURI).href;

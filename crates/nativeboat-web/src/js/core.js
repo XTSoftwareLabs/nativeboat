@@ -356,3 +356,138 @@ class DOMRectList {
     return this[LIST]()[Symbol.iterator]();
   }
 }
+
+// The text of a script template's substitution that stands for an
+// expression, evaluated as the script it was put in runs: literals, arrays,
+// objects, globals, members, calls and `!`, as pages put values in the
+// scripts they build.
+const evaluateTemplateHole = (text) => {
+  const source = String(text);
+  let at = 0;
+  const fail = () => {
+    throw new SyntaxError(`a script template's substitution is not an expression a page can run: ${source}`);
+  };
+  const space = () => {
+    while (at < source.length && /\s/.test(source[at])) at += 1;
+  };
+  const take = (char) => {
+    space();
+    if (source[at] !== char) return false;
+    at += 1;
+    return true;
+  };
+  const expect = (char) => {
+    if (!take(char)) fail();
+  };
+  const string = () => {
+    const quote = source[at];
+    at += 1;
+    let value = '';
+    while (at < source.length && source[at] !== quote) {
+      let char = source[at];
+      if (char === '\\') {
+        at += 1;
+        const escape = source[at];
+        const simple = { n: '\n', r: '\r', t: '\t', b: '\b', f: '\f', v: '\v', 0: '\0' };
+        if (escape === 'u') {
+          char = String.fromCharCode(parseInt(source.slice(at + 1, at + 5), 16));
+          at += 4;
+        } else if (escape === 'x') {
+          char = String.fromCharCode(parseInt(source.slice(at + 1, at + 3), 16));
+          at += 2;
+        } else {
+          char = simple[escape] ?? escape;
+        }
+      }
+      value += char;
+      at += 1;
+    }
+    if (source[at] !== quote) fail();
+    at += 1;
+    return value;
+  };
+  const list = (close, item) => {
+    const items = [];
+    if (take(close)) return items;
+    do items.push(item()); while (take(','));
+    expect(close);
+    return items;
+  };
+  const primary = () => {
+    space();
+    const char = source[at];
+    if (char === '"' || char === "'" || char === '`') return string();
+    if (char === '(') {
+      at += 1;
+      const value = expression();
+      expect(')');
+      return value;
+    }
+    if (char === '!') {
+      at += 1;
+      return !postfix(primary());
+    }
+    if (char === '[') {
+      at += 1;
+      return list(']', expression);
+    }
+    if (char === '{') {
+      at += 1;
+      return Object.fromEntries(list('}', () => {
+        space();
+        let key;
+        if (/["'`]/.test(source[at])) {
+          key = string();
+        } else {
+          key = (/^[\w$]+/.exec(source.slice(at)) || fail())[0];
+          at += key.length;
+        }
+        expect(':');
+        return [key, expression()];
+      }));
+    }
+    const number = /^-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/.exec(source.slice(at));
+    if (number) {
+      at += number[0].length;
+      return Number(number[0]);
+    }
+    const name = /^[A-Za-z_$][\w$]*/.exec(source.slice(at));
+    if (!name) fail();
+    at += name[0].length;
+    const words = { true: true, false: false, null: null, undefined: undefined, NaN: NaN, Infinity: Infinity };
+    if (Object.prototype.hasOwnProperty.call(words, name[0])) return words[name[0]];
+    if (!(name[0] in globalThis)) throw new ReferenceError(`${name[0]} is not defined`);
+    return globalThis[name[0]];
+  };
+  // Members and calls after a value, a method called on its object.
+  const postfix = (value) => {
+    let object;
+    for (;;) {
+      if (take('.')) {
+        space();
+        const name = (/^[\w$]+/.exec(source.slice(at)) || fail())[0];
+        at += name.length;
+        object = value;
+        value = value[name];
+      } else if (take('[')) {
+        const key = expression();
+        expect(']');
+        object = value;
+        value = value[key];
+      } else if (take('(')) {
+        const args = list(')', expression);
+        value = value.apply(object, args);
+        object = undefined;
+      } else {
+        return value;
+      }
+    }
+  };
+  const expression = () => postfix(primary());
+  const value = expression();
+  space();
+  if (at !== source.length) fail();
+  return value;
+};
+hidden(global, '__nbTemplateHole', evaluateTemplateHole);
+
