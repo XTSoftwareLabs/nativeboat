@@ -12,6 +12,12 @@
   `document.open`, `write` and `close`. Frames are 300 by 150 pixels with
   an inset border unless styled. The `documents` setting names HTML files
   that pages show in frames by URLs they build while they run.
+- Service workers: pages register them with `navigator.serviceWorker`,
+  and a worker installs, activates, claims its pages and exchanges
+  messages with them. Its `fetch` event answers the `fetch()` calls,
+  images and linked style sheets of the pages it controls, and it has
+  `clients` and in-memory `caches`. Markup a page writes with
+  `document.write` loads its images, style sheets and handlers.
 - Functions run in the realm that made them, so a frame calling its
   page's listener sees the page's globals.
 - CSS container queries: `container-type`, `container-name`, the
