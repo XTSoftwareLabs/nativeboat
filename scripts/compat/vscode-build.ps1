@@ -7,13 +7,32 @@ param(
     [Parameter(Mandatory)][string]$Work,
     [Parameter(Mandatory)][string]$Out,
     [Parameter(Mandatory)][string]$Log,
-    [int]$Minutes = 290
+    [int]$Minutes = 290,
+    # JSON settings merged into vscode.json, lists appended, for one run.
+    [string]$Extra = ''
 )
 $ErrorActionPreference = 'Stop'
 $env:NATIVEBOAT_KEEP_GOING = '1'
 # The linker map names the frames of stack samples (scripts/sample-stacks.py).
 $env:NATIVEBOAT_LINK_MAP = Join-Path (Split-Path $Out) 'native.map'
-$arguments = 'build', $Repository, '--config', (Join-Path $PSScriptRoot 'vscode.json'), '--out', $Out, '--work-dir', $Work
+$config = Join-Path $PSScriptRoot 'vscode.json'
+if ($Extra) {
+    $settings = Get-Content $config -Raw | ConvertFrom-Json
+    foreach ($property in ($Extra | ConvertFrom-Json).PSObject.Properties) {
+        $known = $settings.PSObject.Properties[$property.Name]
+        if ($known -and $known.Value -is [array] -and $property.Value -is [array]) {
+            $known.Value = @($known.Value) + @($property.Value)
+        } elseif ($known) {
+            $known.Value = $property.Value
+        } else {
+            $settings | Add-Member -NotePropertyName $property.Name -NotePropertyValue $property.Value
+        }
+    }
+    $config = Join-Path (Split-Path $Log) 'vscode-config.json'
+    $settings | ConvertTo-Json -Depth 8 | Set-Content $config
+    Write-Host "config: $(Get-Content $config -Raw)"
+}
+$arguments = 'build', $Repository, '--config', $config, '--out', $Out, '--work-dir', $Work
 $process = Start-Process -FilePath $Nativeboat -ArgumentList $arguments -NoNewWindow -PassThru `
     -RedirectStandardOutput "$Log.out" -RedirectStandardError "$Log.err"
 $null = $process.Handle

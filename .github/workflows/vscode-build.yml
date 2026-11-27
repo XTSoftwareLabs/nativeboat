@@ -13,6 +13,9 @@ on:
       stage:
         type: number
         required: true
+      extra:
+        type: string
+        default: ''
     outputs:
       state:
         description: built, partial or failed
@@ -52,10 +55,12 @@ jobs:
       - name: Build
         id: build
         shell: pwsh
+        env:
+          EXTRA: ${{ inputs.extra }}
         run: >
           ./scripts/compat/vscode-build.ps1 -Nativeboat "$env:ROOT\nativeboat\nativeboat.exe"
           -Repository "$env:ROOT\vscode" -Work "$env:ROOT\work" -Out "$env:ROOT\out"
-          -Log "$env:ROOT\build-${{ inputs.stage }}.log" -Minutes 285
+          -Log "$env:ROOT\build-${{ inputs.stage }}.log" -Minutes 285 -Extra $env:EXTRA
       - uses: actions/cache/save@v4
         if: always() && steps.build.outputs.state != ''
         with:
