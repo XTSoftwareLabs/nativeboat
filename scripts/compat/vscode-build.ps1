@@ -11,6 +11,8 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $env:NATIVEBOAT_KEEP_GOING = '1'
+# The linker map names the frames of stack samples (scripts/sample-stacks.py).
+$env:NATIVEBOAT_LINK_MAP = Join-Path (Split-Path $Out) 'native.map'
 $arguments = 'build', $Repository, '--config', (Join-Path $PSScriptRoot 'vscode.json'), '--out', $Out, '--work-dir', $Work
 $process = Start-Process -FilePath $Nativeboat -ArgumentList $arguments -NoNewWindow -PassThru `
     -RedirectStandardOutput "$Log.out" -RedirectStandardError "$Log.err"
