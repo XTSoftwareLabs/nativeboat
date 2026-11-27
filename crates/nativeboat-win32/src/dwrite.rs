@@ -33,6 +33,8 @@ const DWRITE_FONT_STRETCH_NORMAL: u32 = 5;
 const DWRITE_WORD_WRAPPING_NO_WRAP: u32 = 1;
 
 // Vtable slots, after IUnknown's three.
+const FACTORY_GET_SYSTEM_FONT_COLLECTION: usize = 3;
+const COLLECTION_FIND_FAMILY_NAME: usize = 5;
 const FACTORY_CREATE_RENDERING_PARAMS: usize = 10;
 const FACTORY_CREATE_TEXT_FORMAT: usize = 15;
 const FACTORY_CREATE_TYPOGRAPHY: usize = 16;
@@ -193,6 +195,9 @@ struct Writer {
     faces: HashMap<FaceKey, Com>,
     /// A bitmap render target and its size, grown as text needs.
     target: Option<(Com, i32, i32)>,
+    /// Whether the system's font collection has a family, by name: web
+    /// fonts, which the process loads through GDI, are not in it.
+    families: HashMap<String, bool>,
 }
 
 local! {
@@ -484,6 +489,7 @@ impl Writer {
             formats: HashMap::new(),
             faces: HashMap::new(),
             target: None,
+            families: HashMap::new(),
         })
     }
 
@@ -498,6 +504,12 @@ impl Writer {
         italic: bool,
         features: &[(u32, u32)],
     ) -> Option<Measured> {
+        // DirectWrite would lay out a family it does not have in a fallback
+        // font, which lacks the glyphs of an icon font: such text is left to
+        // GDI, which has the process's web fonts.
+        if !self.system_has(family) {
+            return None;
+        }
         let key = (family.to_owned(), weight, italic, size.to_bits());
         if !self.formats.contains_key(&key) {
             let name = wide(family);
@@ -597,6 +609,46 @@ impl Writer {
             height: metrics.height,
             baseline: line.baseline,
         })
+    }
+
+    /// Whether the system's font collection has the family `family`.
+    fn system_has(&mut self, family: &str) -> bool {
+        if let Some(known) = self.families.get(family) {
+            return *known;
+        }
+        let mut collection = null_mut();
+        // SAFETY: the factory is live; the collection is written out, and
+        // a false argument skips the check for new fonts.
+        let result = unsafe {
+            method::<unsafe extern "system" fn(*mut c_void, *mut *mut c_void, i32) -> HRESULT>(
+                self.factory.0,
+                FACTORY_GET_SYSTEM_FONT_COLLECTION,
+            )(self.factory.0, &mut collection, 0)
+        };
+        let found = result >= 0 && !collection.is_null() && {
+            let collection = Com(collection);
+            let name = wide(family);
+            let (mut index, mut exists) = (0u32, 0i32);
+            // SAFETY: the name is NUL-terminated; both outputs are writable.
+            let result = unsafe {
+                method::<
+                    unsafe extern "system" fn(
+                        *mut c_void,
+                        *const u16,
+                        *mut u32,
+                        *mut i32,
+                    ) -> HRESULT,
+                >(collection.0, COLLECTION_FIND_FAMILY_NAME)(
+                    collection.0,
+                    name.as_ptr(),
+                    &mut index,
+                    &mut exists,
+                )
+            };
+            result >= 0 && exists != 0
+        };
+        self.families.insert(family.to_owned(), found);
+        found
     }
 
     /// Applies OpenType features to the whole of a layout's text.
