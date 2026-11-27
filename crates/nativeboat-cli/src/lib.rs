@@ -9,6 +9,7 @@ mod css_imports;
 mod installer;
 mod native;
 mod node_lib;
+mod package_use;
 mod packages;
 mod prepare;
 mod resources;

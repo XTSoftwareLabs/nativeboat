@@ -7533,7 +7533,7 @@ setTimeout(() => {
         "worker.js",
         br#"process.on('message', (message) => {
   if (message.step === 0) {
-    process.send({ step: 1, args: process.argv.slice(1), keys: Object.keys(message), connected: process.connected });
+    process.send({ step: 1, args: process.argv.slice(2), script: process.argv[1].endsWith('worker.js'), keys: Object.keys(message), connected: process.connected });
   } else {
     process.send({ step: 3, when: message.when }, () => process.disconnect());
   }
@@ -7548,7 +7548,7 @@ process.on('disconnect', () => process.exit(7));
     assert!(executed.status.success(), "{executed:?}");
     assert_eq!(
         String::from_utf8_lossy(&executed.stdout),
-        r#"{"step":1,"args":["--one"],"keys":["step"],"connected":true}|{"step":3,"when":"1970-01-01T00:00:00.000Z"}|disconnect|exit 7 false|{"traceEvents":[],"metadata":{}}|true|missing 1
+        r#"{"step":1,"args":["--one"],"script":true,"keys":["step"],"connected":true}|{"step":3,"when":"1970-01-01T00:00:00.000Z"}|disconnect|exit 7 false|{"traceEvents":[],"metadata":{}}|true|missing 1
 "#
     );
 }
