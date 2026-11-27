@@ -7733,7 +7733,8 @@ fn inserted_scripts_get_their_load_event_before_the_next_runs() {
              globalThis.define.amd = true;\n\
              const load = (pkg, file) => new Promise((resolve) => {\n\
                const script = document.createElement('script');\n\
-               script.addEventListener('load', () => resolve(calls.pop()()));\n\
+               script.addEventListener('load', () => { const call = calls.pop(); resolve(call ? call() : { name: `no-define(${typeof globalThis.one})` }); });\n\
+               script.addEventListener('error', () => resolve({ name: `error(${file})` }));\n\
                script.setAttribute('src', ['.', 'node_modules', pkg, file].join('/'));\n\
                document.head.appendChild(script);\n\
              });\n\
