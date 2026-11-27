@@ -7698,7 +7698,10 @@ fn pages_load_the_package_scripts_they_name() {
 /// script made when the script loads pairs each script with its own, as
 /// VS Code's loads `vscode-textmate` and `vscode-oniguruma`.
 #[test]
+#[ignore = "requires NATIVEBOAT_RENDERER_TOOLCHAIN with packaged renderer libraries"]
 fn inserted_scripts_get_their_load_event_before_the_next_runs() {
+    let sysroot = PathBuf::from(std::env::var_os("NATIVEBOAT_RENDERER_TOOLCHAIN").unwrap());
+    assert!(sysroot.join("renderer-libs").is_dir());
     let umd = |name: &str| {
         format!(
             "!function(t,n){{\"object\"==typeof exports&&\"object\"==typeof module?module.exports=n():\"function\"==typeof define&&define.amd?define([],n):t.{name}=n()}}(this,()=>({{name:'{name}'}}));"
@@ -7713,10 +7716,8 @@ fn inserted_scripts_get_their_load_event_before_the_next_runs() {
         (
             "main.ts",
             "import { app, BrowserWindow, ipcMain } from 'electron';\n\
-             const steps: string[] = [];\n\
-             ipcMain.on('step', (_event, value) => steps.push(value));\n\
              ipcMain.on('seen', (_event, value) => { console.log('seen', value); app.quit(); });\n\
-             setTimeout(() => { console.log('lost', steps.join(',')); app.quit(); }, 5000);\n\
+             setTimeout(() => { console.log('lost'); app.quit(); }, 5000);\n\
              new BrowserWindow({ show: false, webPreferences: { preload: './preload.ts' } }).loadFile('index.html');",
         ),
         (
@@ -7730,8 +7731,7 @@ fn inserted_scripts_get_their_load_event_before_the_next_runs() {
         ),
         (
             "page.js",
-            "api.send('step', 'start');\n\
-             const calls = [];\n\
+            "const calls = [];\n\
              globalThis.define = (dependencies, callback) => calls.push(callback);\n\
              globalThis.define.amd = true;\n\
              const load = (pkg, file) => new Promise((resolve) => {\n\
@@ -7740,8 +7740,6 @@ fn inserted_scripts_get_their_load_event_before_the_next_runs() {
                script.addEventListener('error', () => resolve({ name: `error(${file})` }));\n\
                script.setAttribute('src', ['.', 'node_modules', pkg, file].join('/'));\n\
                document.head.appendChild(script);\n\
-               api.send('step', `appended ${pkg} ${script.isConnected}`);\n\
-               setTimeout(() => api.send('step', `later ${pkg}`), 500);\n\
              });\n\
              Promise.all([load('amd-one', 'main.js'), load('amd-two', 'main.js')])\n\
                .then(([first, second]) => api.send('seen', `${first.name} ${second.name}`));",
@@ -7757,6 +7755,16 @@ fn inserted_scripts_get_their_load_event_before_the_next_runs() {
         ),
         ("node_modules/amd-two/main.js", two.as_str()),
     ]);
+    let mut session = shimforge::Session::new();
+    let select = shimforge::mock!(
+        session,
+        select_toolchain,
+        fn(Option<&Path>, &Path) -> Toolchain
+    );
+    select.expect().returning(move |_, _| Toolchain {
+        rustc: sysroot.join("bin/rustc.exe"),
+        sysroot: Some(sysroot.clone()),
+    });
     let (code, stdout, stderr) = run(&fixture, &["--out", "native-output"]);
     assert_eq!(code, 0, "{stdout}{stderr}");
     let executed = Command::new(fixture.path("native-output/native-amd-test.exe"))
