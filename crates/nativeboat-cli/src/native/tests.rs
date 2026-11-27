@@ -7757,7 +7757,12 @@ fn inserted_scripts_get_their_load_event_before_the_next_runs() {
         .output()
         .unwrap();
     assert!(executed.status.success(), "{executed:?}");
-    assert_eq!(String::from_utf8_lossy(&executed.stdout), "seen one two\n");
+    assert_eq!(
+        String::from_utf8_lossy(&executed.stdout),
+        "seen one two\n",
+        "{}",
+        String::from_utf8_lossy(&executed.stderr)
+    );
 }
 
 /// `@vscode/sqlite3`'s binding over the runtime's engine, as VS Code's
