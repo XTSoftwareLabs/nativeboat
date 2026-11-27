@@ -526,9 +526,10 @@ fn collect_package_files(root: &Path, package: &Path, files: &mut Vec<ExtraFile>
             }
             let relative = crate::relative(root, &path);
             let extension = name.rsplit_once('.').map_or("", |(_, extension)| extension);
-            let left_behind = matches!(
-                extension,
-                "node"
+            let left_behind =
+                matches!(
+                    extension,
+                    "node"
                     | "obj"
                     | "pdb"
                     | "lib"
@@ -564,7 +565,9 @@ fn collect_package_files(root: &Path, package: &Path, files: &mut Vec<ExtraFile>
                     | "vcxproj"
                     | "filters"
                     | "sln"
-            );
+                    | "m"
+                    | "mm"
+                ) || matches!(name.as_str(), "appveyor.yml" | ".travis.yml" | "circle.yml");
             if !left_behind && !compiled_or_ignored(&relative) {
                 files.push(ExtraFile {
                     destination: relative,
