@@ -95,6 +95,10 @@ jobs:
           & "$env:ROOT\nativeboat\nativeboat.exe" analyze $project > "$env:ROOT\result\analyze.txt"
           & "$env:ROOT\nativeboat\nativeboat.exe" build $project --out "$env:ROOT\out" 2>&1 | Tee-Object "$env:ROOT\result\build.log"
           if ($LASTEXITCODE -ne 0) { throw "nativeboat build failed with $LASTEXITCODE" }
+          # What the output ships beside the executable.
+          Get-ChildItem "$env:ROOT\out" -Recurse -File |
+            ForEach-Object { '{0,12} {1}' -f $_.Length, $_.FullName.Substring("$env:ROOT\out".Length + 1) } |
+            Set-Content "$env:ROOT\result\files.txt"
       - name: Run
         shell: pwsh
         run: |
