@@ -3,7 +3,8 @@
 # the AI sign-in, then saves a window snapshot, its output and VS Code's
 # logs into -OutputDirectory. A task the folder runs when it opens shows the
 # integrated terminal. -Environment sets variables such as
-# NATIVEBOAT_TRACE_IPC=1 for the run, and -Settings is a JSON object of
+# NATIVEBOAT_TRACE_IPC=1 or VSCODE_ARGUMENTS=--log=trace (more command line
+# arguments) for the run, and -Settings is a JSON object of
 # more settings, such as {"workbench.editorAssociations": {...}}.
 param(
     [Parameter(Mandatory)][string]$Out,
@@ -49,6 +50,8 @@ New-Item -ItemType Directory -Force $tasks | Out-Null
 } | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $tasks 'tasks.json')
 $arguments = "--user-data-dir=$OutputDirectory\data", "--extensions-dir=$OutputDirectory\extensions",
     '--enable-smoke-test-driver', '--disable-workspace-trust', $Folder, (Join-Path $Folder 'README.md')
+# More command line arguments, such as --log=trace, from VSCODE_ARGUMENTS.
+if ($env:VSCODE_ARGUMENTS) { $arguments += $env:VSCODE_ARGUMENTS -split ' ' | Where-Object { $_ } }
 & (Join-Path $PSScriptRoot '..\app-snapshot.ps1') -Executable $executable.FullName -OutputDirectory $OutputDirectory `
     -WaitSeconds $WaitSeconds -Arguments $arguments
 Get-Process | Where-Object { $_.Path -eq $executable.FullName } | Stop-Process -Force -ErrorAction SilentlyContinue
