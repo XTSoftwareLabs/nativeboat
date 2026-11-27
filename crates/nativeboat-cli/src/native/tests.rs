@@ -7713,8 +7713,10 @@ fn inserted_scripts_get_their_load_event_before_the_next_runs() {
         (
             "main.ts",
             "import { app, BrowserWindow, ipcMain } from 'electron';\n\
+             const steps: string[] = [];\n\
+             ipcMain.on('step', (_event, value) => steps.push(value));\n\
              ipcMain.on('seen', (_event, value) => { console.log('seen', value); app.quit(); });\n\
-             setTimeout(() => { console.log('lost'); app.quit(); }, 5000);\n\
+             setTimeout(() => { console.log('lost', steps.join(',')); app.quit(); }, 5000);\n\
              new BrowserWindow({ show: false, webPreferences: { preload: './preload.ts' } }).loadFile('index.html');",
         ),
         (
@@ -7728,7 +7730,8 @@ fn inserted_scripts_get_their_load_event_before_the_next_runs() {
         ),
         (
             "page.js",
-            "const calls = [];\n\
+            "api.send('step', 'start');\n\
+             const calls = [];\n\
              globalThis.define = (dependencies, callback) => calls.push(callback);\n\
              globalThis.define.amd = true;\n\
              const load = (pkg, file) => new Promise((resolve) => {\n\
@@ -7737,6 +7740,8 @@ fn inserted_scripts_get_their_load_event_before_the_next_runs() {
                script.addEventListener('error', () => resolve({ name: `error(${file})` }));\n\
                script.setAttribute('src', ['.', 'node_modules', pkg, file].join('/'));\n\
                document.head.appendChild(script);\n\
+               api.send('step', `appended ${pkg} ${script.isConnected}`);\n\
+               setTimeout(() => api.send('step', `later ${pkg}`), 500);\n\
              });\n\
              Promise.all([load('amd-one', 'main.js'), load('amd-two', 'main.js')])\n\
                .then(([first, second]) => api.send('seen', `${first.name} ${second.name}`));",
