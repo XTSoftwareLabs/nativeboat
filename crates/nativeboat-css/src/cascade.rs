@@ -871,9 +871,10 @@ fn authored_declarations<'a, E: Element>(
 /// controls, as browsers do when authors style a control's background or
 /// border, or set `appearance: none`.
 fn disables_appearance(declaration: &Declaration) -> bool {
-    let name = ["-webkit-", "-moz-"]
-        .iter()
-        .find_map(|prefix| declaration.name.strip_prefix(prefix))
+    // Chromium knows `-webkit-appearance`, not `-moz-appearance`.
+    let name = declaration
+        .name
+        .strip_prefix("-webkit-")
         .unwrap_or(&declaration.name);
     match name {
         "appearance" => declaration.value.trim().eq_ignore_ascii_case("none"),
@@ -1140,7 +1141,7 @@ fn cascade_state<E: Element>(
         *author
             && matches!(
                 declaration.name.as_str(),
-                "appearance" | "-webkit-appearance" | "-moz-appearance"
+                "appearance" | "-webkit-appearance"
             )
             && declaration.value.trim().eq_ignore_ascii_case("none")
     });

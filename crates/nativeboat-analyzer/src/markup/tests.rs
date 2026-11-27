@@ -138,7 +138,8 @@ fn unimplemented_properties_count_unless_they_change_nothing() {
          .d { word-spacing: 4px; }\n\
          .e { text-shadow: none; overflow-anchor: none !important; appearance: none; \
          -webkit-appearance: none; mix-blend-mode: normal; font-variant-ligatures: none; }\n\
-         .f { mix-blend-mode: multiply; font-variant-ligatures: normal; }\n",
+         .f { mix-blend-mode: multiply; font-variant-ligatures: normal; }\n\
+         .g { -moz-appearance: none; -ms-overflow-style: none; -mox-box-sizing: border-box; -webkit-touch-callout: none; }\n",
     );
     assert_eq!(
         ids(&found),
@@ -174,7 +175,7 @@ fn stylesheets() {
             ("css:flexbox".to_owned(), 2),
             ("css:transform".to_owned(), 2),
             ("css:property:zoom".to_owned(), 2),
-            ("css:property:appearance".to_owned(), 2),
+            ("css:appearance".to_owned(), 2),
             ("css:selector:state".to_owned(), 3),
             ("css:filter".to_owned(), 3),
             ("css:media".to_owned(), 0),
