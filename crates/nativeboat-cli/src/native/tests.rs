@@ -7693,6 +7693,73 @@ fn pages_load_the_package_scripts_they_name() {
     );
 }
 
+/// Package scripts a page inserts at once run one at a time, each followed
+/// by its `load` event, so an AMD loader that takes the `define` call a
+/// script made when the script loads pairs each script with its own, as
+/// VS Code's loads `vscode-textmate` and `vscode-oniguruma`.
+#[test]
+fn inserted_scripts_get_their_load_event_before_the_next_runs() {
+    let umd = |name: &str| {
+        format!(
+            "!function(t,n){{\"object\"==typeof exports&&\"object\"==typeof module?module.exports=n():\"function\"==typeof define&&define.amd?define([],n):t.{name}=n()}}(this,()=>({{name:'{name}'}}));"
+        )
+    };
+    let (one, two) = (umd("one"), umd("two"));
+    let fixture = Fixture::new(&[
+        (
+            "package.json",
+            r#"{"name":"native-amd-test","type":"module","main":"main.ts","devDependencies":{"electron":"44"}}"#,
+        ),
+        (
+            "main.ts",
+            "import { app, BrowserWindow, ipcMain } from 'electron';\n\
+             ipcMain.on('seen', (_event, value) => { console.log('seen', value); app.quit(); });\n\
+             setTimeout(() => { console.log('lost'); app.quit(); }, 5000);\n\
+             new BrowserWindow({ show: false, webPreferences: { preload: './preload.ts' } }).loadFile('index.html');",
+        ),
+        (
+            "index.html",
+            "<!doctype html><html><head><script type=module src='./page.js'></script></head><body></body></html>",
+        ),
+        (
+            "preload.ts",
+            "import { contextBridge, ipcRenderer } from 'electron';\n\
+             contextBridge.exposeInMainWorld('api', { send: (channel, value) => ipcRenderer.send(channel, value) });",
+        ),
+        (
+            "page.js",
+            "const calls = [];\n\
+             globalThis.define = (dependencies, callback) => calls.push(callback);\n\
+             globalThis.define.amd = true;\n\
+             const load = (pkg, file) => new Promise((resolve) => {\n\
+               const script = document.createElement('script');\n\
+               script.addEventListener('load', () => resolve(calls.pop()()));\n\
+               script.setAttribute('src', ['.', 'node_modules', pkg, file].join('/'));\n\
+               document.head.appendChild(script);\n\
+             });\n\
+             Promise.all([load('amd-one', 'main.js'), load('amd-two', 'main.js')])\n\
+               .then(([first, second]) => api.send('seen', `${first.name} ${second.name}`));",
+        ),
+        (
+            "node_modules/amd-one/package.json",
+            r#"{"name":"amd-one","version":"1.0.0"}"#,
+        ),
+        ("node_modules/amd-one/main.js", one.as_str()),
+        (
+            "node_modules/amd-two/package.json",
+            r#"{"name":"amd-two","version":"1.0.0"}"#,
+        ),
+        ("node_modules/amd-two/main.js", two.as_str()),
+    ]);
+    let (code, stdout, stderr) = run(&fixture, &["--out", "native-output"]);
+    assert_eq!(code, 0, "{stdout}{stderr}");
+    let executed = Command::new(fixture.path("native-output/native-amd-test.exe"))
+        .output()
+        .unwrap();
+    assert!(executed.status.success(), "{executed:?}");
+    assert_eq!(String::from_utf8_lossy(&executed.stdout), "seen one two\n");
+}
+
 /// `@vscode/sqlite3`'s binding over the runtime's engine, as VS Code's
 /// storage drives it: open, `exec`, a prepared upsert with a Buffer value,
 /// `all`, an error with SQLite's code, close, and the file opened again.
