@@ -804,6 +804,23 @@ fn container_rules_style_pseudo_elements_of_their_containers() {
     assert_eq!(page.rect(id("after")).unwrap().y, 25.0);
 }
 
+/// Grid items placed by area name go where `grid-template-areas` names
+/// them; a single name in `grid-area` gives all four lines.
+#[test]
+fn grid_items_are_placed_in_named_areas() {
+    let (page, dom) = page(
+        "<style>body { margin: 0 } #grid { display: grid; width: 200px;         grid-template-columns: 50px 150px; grid-template-rows: 10px 30px;         grid-template-areas: 'head head' 'side main' }         #a { grid-area: main } #b { grid-area: head } #c { grid-row: side; grid-column: side }</style>         <div id='grid'><div id='a'></div><div id='b'></div><div id='c'></div></div>",
+    );
+    let id = |name| dom.borrow().get_element_by_id(Dom::DOCUMENT, name).unwrap();
+    let place = |name| {
+        let rect = page.rect(id(name)).unwrap();
+        (rect.x, rect.y, rect.width, rect.height)
+    };
+    assert_eq!(place("a"), (50.0, 10.0, 150.0, 30.0));
+    assert_eq!(place("b"), (0.0, 0.0, 200.0, 10.0));
+    assert_eq!(place("c"), (0.0, 10.0, 50.0, 30.0));
+}
+
 #[test]
 fn transitions_present_frame_values_and_report_their_events() {
     let (page, dom) = page("<div id='box'></div>");

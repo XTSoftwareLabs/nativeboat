@@ -169,11 +169,12 @@ fn overflow(value: CssOverflow) -> Overflow {
     }
 }
 
-fn placement(line: GridLine) -> GridPlacement {
+fn placement(line: &GridLine) -> GridPlacement {
     match line {
         GridLine::Auto => GridPlacement::Auto,
-        GridLine::Line(index) => GridPlacement::from_line_index(index),
-        GridLine::Span(count) => GridPlacement::from_span(count),
+        GridLine::Line(index) => GridPlacement::from_line_index(*index),
+        GridLine::Span(count) => GridPlacement::from_span(*count),
+        GridLine::Named(name) => GridPlacement::NamedLine(name.as_str().into(), 0),
     }
 }
 
@@ -354,13 +355,31 @@ pub fn convert(style: &ComputedStyle, mode: Mode, calcs: &mut CalcStore) -> Styl
             (true, false) => GridAutoFlow::Column,
             (true, true) => GridAutoFlow::ColumnDense,
         },
+        grid_template_areas: (style.grid_template_areas.rows > 0).then(|| {
+            taffy::style::GridTemplateAreas {
+                areas: style
+                    .grid_template_areas
+                    .areas
+                    .iter()
+                    .map(|area| taffy::style::GridTemplateArea {
+                        name: area.name.as_str().into(),
+                        row_start: area.row_start,
+                        row_end: area.row_end,
+                        column_start: area.column_start,
+                        column_end: area.column_end,
+                    })
+                    .collect(),
+                row_count: style.grid_template_areas.rows,
+                column_count: style.grid_template_areas.columns,
+            }
+        }),
         grid_row: Line {
-            start: placement(style.grid_row_start),
-            end: placement(style.grid_row_end),
+            start: placement(&style.grid_row_start),
+            end: placement(&style.grid_row_end),
         },
         grid_column: Line {
-            start: placement(style.grid_column_start),
-            end: placement(style.grid_column_end),
+            start: placement(&style.grid_column_start),
+            end: placement(&style.grid_column_end),
         },
         ..Style::default()
     }

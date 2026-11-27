@@ -2388,7 +2388,7 @@ impl ToCss for TrackSizes {
 }
 
 /// A grid placement line.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum GridLine {
     /// `auto`
     #[default]
@@ -2397,6 +2397,9 @@ pub enum GridLine {
     Line(i16),
     /// `span n`
     Span(u16),
+    /// A named line, or the start or end line of a named area, as the
+    /// side the line is placed on asks.
+    Named(String),
 }
 
 impl ToCss for GridLine {
@@ -2405,7 +2408,56 @@ impl ToCss for GridLine {
             GridLine::Auto => "auto".to_owned(),
             GridLine::Line(line) => line.to_string(),
             GridLine::Span(span) => format!("span {span}"),
+            GridLine::Named(name) => name.clone(),
         }
+    }
+}
+
+/// A named area of `grid-template-areas`, between 1-based grid lines.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GridArea {
+    /// The area's name.
+    pub name: String,
+    /// The row line it starts at.
+    pub row_start: u16,
+    /// The row line it ends at.
+    pub row_end: u16,
+    /// The column line it starts at.
+    pub column_start: u16,
+    /// The column line it ends at.
+    pub column_end: u16,
+}
+
+/// The `grid-template-areas` property: its named areas and the size of its
+/// template in tracks; no rows for `none`.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct GridTemplateAreas {
+    /// The named areas.
+    pub areas: Vec<GridArea>,
+    /// How many rows the template has.
+    pub rows: u16,
+    /// How many columns the template has.
+    pub columns: u16,
+}
+
+impl ToCss for GridTemplateAreas {
+    fn to_css(&self) -> String {
+        if self.rows == 0 {
+            return "none".to_owned();
+        }
+        let mut cells = vec![vec!["."; usize::from(self.columns)]; usize::from(self.rows)];
+        for area in &self.areas {
+            for row in area.row_start..area.row_end {
+                for column in area.column_start..area.column_end {
+                    cells[usize::from(row - 1)][usize::from(column - 1)] = area.name.as_str();
+                }
+            }
+        }
+        cells
+            .iter()
+            .map(|row| format!("\"{}\"", row.join(" ")))
+            .collect::<Vec<_>>()
+            .join(" ")
     }
 }
 

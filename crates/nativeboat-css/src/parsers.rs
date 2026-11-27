@@ -1754,6 +1754,9 @@ pub fn grid_line(values: &[ComponentValue], _: &Context) -> Option<GridLine> {
             {
                 return Some(GridLine::Auto);
             }
+            ComponentValue::Token(Token::Ident(word)) if values.len() == 1 => {
+                return Some(GridLine::Named(word.clone()));
+            }
             ComponentValue::Token(Token::Number {
                 value,
                 integer: true,
@@ -1767,6 +1770,101 @@ pub fn grid_line(values: &[ComponentValue], _: &Context) -> Option<GridLine> {
         (false, Some(line)) => Some(GridLine::Line(line as i16)),
         _ => None,
     }
+}
+
+/// `grid-template-areas`: `none`, or strings of cells, each a name or a
+/// run of `.` for none, every string as long as the first; each name must
+/// fill a rectangle.
+pub fn grid_template_areas(values: &[ComponentValue], _: &Context) -> Option<GridTemplateAreas> {
+    let values = without_whitespace(values);
+    if let [ComponentValue::Token(Token::Ident(word))] = values.as_slice()
+        && word.eq_ignore_ascii_case("none")
+    {
+        return Some(GridTemplateAreas::default());
+    }
+    let mut rows: Vec<Vec<Option<String>>> = Vec::new();
+    for value in &values {
+        let ComponentValue::Token(Token::String(text)) = value else {
+            return None;
+        };
+        let row = area_cells(text)?;
+        if row.is_empty() || rows.first().is_some_and(|first| first.len() != row.len()) {
+            return None;
+        }
+        rows.push(row);
+    }
+    let columns = rows.first()?.len();
+    let mut areas: Vec<GridArea> = Vec::new();
+    for (row, cells) in rows.iter().enumerate() {
+        for (column, cell) in cells.iter().enumerate() {
+            let Some(name) = cell else { continue };
+            if areas.iter().any(|area| &area.name == name) {
+                continue;
+            }
+            // The area's rectangle runs right and down from its first cell.
+            let width = cells[column..]
+                .iter()
+                .take_while(|other| other.as_ref() == Some(name))
+                .count();
+            let height = rows[row..]
+                .iter()
+                .take_while(|other| other[column].as_ref() == Some(name))
+                .count();
+            let filled = rows.iter().enumerate().all(|(y, cells)| {
+                cells.iter().enumerate().all(|(x, other)| {
+                    let inside =
+                        (row..row + height).contains(&y) && (column..column + width).contains(&x);
+                    inside == (other.as_ref() == Some(name))
+                })
+            });
+            if !filled {
+                return None;
+            }
+            areas.push(GridArea {
+                name: name.clone(),
+                row_start: row as u16 + 1,
+                row_end: (row + height) as u16 + 1,
+                column_start: column as u16 + 1,
+                column_end: (column + width) as u16 + 1,
+            });
+        }
+    }
+    Some(GridTemplateAreas {
+        areas,
+        rows: rows.len() as u16,
+        columns: columns as u16,
+    })
+}
+
+/// The cells of a `grid-template-areas` string: names, and `None` for each
+/// run of `.`; `None` for a string with other characters.
+fn area_cells(text: &str) -> Option<Vec<Option<String>>> {
+    let mut cells = Vec::new();
+    let mut chars = text.chars().peekable();
+    while let Some(&next) = chars.peek() {
+        if next.is_whitespace() {
+            chars.next();
+        } else if next == '.' {
+            while chars.peek() == Some(&'.') {
+                chars.next();
+            }
+            cells.push(None);
+        } else if next.is_alphanumeric() || next == '-' || next == '_' || !next.is_ascii() {
+            let mut name = String::new();
+            while let Some(&part) = chars.peek() {
+                if part.is_alphanumeric() || part == '-' || part == '_' || !part.is_ascii() {
+                    name.push(part);
+                    chars.next();
+                } else {
+                    break;
+                }
+            }
+            cells.push(Some(name));
+        } else {
+            return None;
+        }
+    }
+    Some(cells)
 }
 
 /// `grid-auto-flow`.
