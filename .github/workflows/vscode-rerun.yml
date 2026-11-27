@@ -22,6 +22,9 @@ on:
       sample_delay:
         description: Seconds after the start before sampling
         default: '20'
+      settings:
+        description: JSON object of more VS Code settings
+        default: ''
 
 permissions:
   contents: read
@@ -51,6 +54,7 @@ jobs:
           WAIT: ${{ inputs.wait_seconds }}
           SAMPLE: ${{ inputs.sample_seconds }}
           DELAY: ${{ inputs.sample_delay }}
+          VSCODE_SETTINGS: ${{ inputs.settings }}
         run: |
           # Stack samples of the main process, while VS Code runs.
           $sampler = $null
@@ -67,7 +71,7 @@ jobs:
             }
           }
           ./scripts/compat/vscode-run.ps1 -Out "$env:ROOT\out" -OutputDirectory "$env:ROOT\result" -Folder $env:GITHUB_WORKSPACE `
-            -WaitSeconds $env:WAIT -Environment ($env:SETTINGS -split ';')
+            -WaitSeconds $env:WAIT -Environment ($env:SETTINGS -split ';') -Settings $env:VSCODE_SETTINGS
           if ($sampler) { Receive-Job $sampler -Wait | Select-Object -Last 30 }
       - uses: actions/upload-artifact@v4
         if: always()
