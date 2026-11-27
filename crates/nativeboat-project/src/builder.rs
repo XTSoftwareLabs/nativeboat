@@ -342,9 +342,10 @@ fn compiled_or_ignored(relative: &str) -> bool {
 /// electron-builder's `files` selects them for the package (every file
 /// when the configuration has none): the pages' style sheets and images,
 /// data files and the programs the application starts. Sources the build
-/// compiles into the executable, installed packages, the build resources
-/// folder unless a pattern names it, and the `skipped` folders, such as
-/// the output, stay behind.
+/// compiles into the executable, installed packages, test folders (their
+/// fixtures), the build resources folder unless a pattern names it, and the
+/// `skipped` folders, such as the output, stay behind. The installed
+/// packages' files the application runs with follow the same patterns.
 pub fn application_files(root: &Path, config: &Value, skipped: &[PathBuf]) -> Vec<ExtraFile> {
     let values: Vec<Value> = [&config["files"], &config["win"]["files"]]
         .into_iter()
@@ -374,6 +375,11 @@ pub fn application_files(root: &Path, config: &Value, skipped: &[PathBuf]) -> Ve
     // The application's packages: its own and those nested in its folders,
     // whose installed dependencies ship with it.
     let mut packages = Vec::new();
+    // electron-builder applies the root's patterns to the packages too.
+    let root_filters = sets
+        .iter()
+        .find(|set| set.from == "." && set.to.is_none())
+        .map(|set| set.filters.clone());
     for set in sets {
         let from = nativeboat_bundler::resolve::normalize(&root.join(&set.from));
         if !from.is_dir() {
@@ -403,6 +409,9 @@ pub fn application_files(root: &Path, config: &Value, skipped: &[PathBuf]) -> Ve
                 if path.is_dir() {
                     let name = path.file_name().unwrap_or_default().to_string_lossy();
                     let excluded = name.eq_ignore_ascii_case("node_modules")
+                        || TEST_FOLDERS
+                            .iter()
+                            .any(|test| name.eq_ignore_ascii_case(test))
                         || name.starts_with('.')
                         || skipped.contains(&nativeboat_bundler::resolve::normalize(&path))
                         || (!named_resources && segments(&relative) == resources)
@@ -419,11 +428,25 @@ pub fn application_files(root: &Path, config: &Value, skipped: &[PathBuf]) -> Ve
             }
         }
     }
-    files.extend(dependency_files(root, &packages));
+    files.extend(
+        dependency_files(root, &packages)
+            .into_iter()
+            .filter(|file| {
+                root_filters.as_ref().is_none_or(|filters| {
+                    // Excluded folders take their files with them.
+                    let parts: Vec<&str> = file.destination.split('/').collect();
+                    selected(filters, &file.destination)
+                        && !(1..parts.len()).any(|count| pruned(filters, &parts[..count].join("/")))
+                })
+            }),
+    );
     files.sort_by(|left, right| left.destination.cmp(&right.destination));
     files.dedup_by(|left, right| left.destination == right.destination);
     files
 }
+
+/// Folders of tests and their fixtures, which applications do not run.
+const TEST_FOLDERS: &[&str] = &["test", "tests", "__tests__"];
 
 /// The files of the installed packages `packages` depend on when they run
 /// (`dependencies` and `optionalDependencies`, transitively, found as Node
@@ -503,9 +526,10 @@ fn collect_package_files(root: &Path, package: &Path, files: &mut Vec<ExtraFile>
             }
             let relative = crate::relative(root, &path);
             let extension = name.rsplit_once('.').map_or("", |(_, extension)| extension);
-            let left_behind = matches!(
-                extension,
-                "node"
+            let left_behind =
+                matches!(
+                    extension,
+                    "node"
                     | "obj"
                     | "pdb"
                     | "lib"
@@ -526,7 +550,24 @@ fn collect_package_files(root: &Path, package: &Path, files: &mut Vec<ExtraFile>
                     | "md"
                     | "markdown"
                     | "tsbuildinfo"
-            );
+                    // Style sheet and type sources, and build leftovers.
+                    | "scss"
+                    | "sass"
+                    | "less"
+                    | "styl"
+                    | "flow"
+                    | "py"
+                    | "pl"
+                    | "inc"
+                    | "cfg"
+                    | "mf"
+                    | "ttx"
+                    | "vcxproj"
+                    | "filters"
+                    | "sln"
+                    | "m"
+                    | "mm"
+                ) || matches!(name.as_str(), "appveyor.yml" | ".travis.yml" | "circle.yml");
             if !left_behind && !compiled_or_ignored(&relative) {
                 files.push(ExtraFile {
                     destination: relative,

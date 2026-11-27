@@ -571,6 +571,7 @@ fn compile_with(
     errors.extend(renderer_option_errors);
     let mut renderers: Vec<CompiledContext> = Vec::new();
     let mut renderer_entries = Vec::new();
+    crate::package_use::pages(true);
     for page in &project.pages {
         match renderer_scripts(project, page) {
             Ok((mut entries, script_errors)) => {
@@ -625,6 +626,7 @@ fn compile_with(
             Err(found) => errors.extend(found),
         }
     }
+    crate::package_use::pages(false);
     NativeCompilation {
         main,
         forks,
@@ -1275,6 +1277,7 @@ fn graph_entries_with_stylesheets(
                 Some(text) => text,
                 None => std::fs::read_to_string(path).ok()?,
             };
+            crate::package_use::compiled(path);
             if path.extension().is_some_and(|extension| extension == "css") {
                 // A Tailwind CSS sheet was built with its imports inlined.
                 let (text, mut errors) = match sheets.get(path) {
@@ -3257,10 +3260,14 @@ fn link_inner(
     // replace any of them, as in an electron-builder package. Files inside
     // the output folder are the build's own.
     let output = nativeboat_bundler::resolve::normalize(directory);
+    // Where a bundler builds the pages, the packages only pages use were
+    // compiled and embedded: their files stay behind.
+    let bundled = project.layout != Layout::Plain;
     let application_files: Vec<_> = project
         .application_files
         .iter()
         .filter(|file| !nativeboat_bundler::resolve::normalize(&file.source).starts_with(&output))
+        .filter(|file| !bundled || crate::package_use::used(&file.source))
         .cloned()
         .collect();
     // The application's own files are in `resources/app`, as in a
