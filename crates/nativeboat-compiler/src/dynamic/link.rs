@@ -676,12 +676,32 @@ fn scan(path: &Path, text: String, options: &CompileOptions) -> Result<Record, V
             .components()
             .any(|component| component.as_os_str() == "node_modules"))
         || compiles_to_commonjs(options, path);
+    // `declare function require(...)` only tells TypeScript of that
+    // `require`: it emits nothing.
+    let ambient = program.body.iter().find_map(|statement| match statement {
+        Statement::FunctionDeclaration(function) if function.declare => function
+            .id
+            .as_ref()
+            .filter(|id| id.name == "require")
+            .map(BindingIdentifier::symbol_id),
+        Statement::VariableDeclaration(declaration) if declaration.declare => declaration
+            .declarations
+            .iter()
+            .find_map(|declarator| match &declarator.id {
+                BindingPattern::BindingIdentifier(id) if id.name == "require" => {
+                    Some(id.symbol_id())
+                }
+                _ => None,
+            }),
+        _ => None,
+    });
     let mut created_calls = CreateRequireCalls {
         source: &source,
         scoping: &scoping,
         factories: &create_require_factories,
         requires: &created_require_symbols,
         implicit,
+        ambient,
         functions: Vec::new(),
         scopes: HashSet::new(),
         allowed_references: HashSet::new(),
@@ -815,6 +835,8 @@ struct CreateRequireCalls<'s, 'p> {
     requires: &'s HashSet<SymbolId>,
     /// Whether an unbound `require` is the module's own, as in a bundle.
     implicit: bool,
+    /// The module's ambient `require` declaration, which binds nothing.
+    ambient: Option<SymbolId>,
     /// The functions the visitor is in, innermost last.
     functions: Vec<oxc::semantic::ScopeId>,
     /// The functions around lowered calls.
@@ -847,7 +869,9 @@ impl<'a> Visit<'a> for CreateRequireCalls<'_, '_> {
                     // Other calls run the library's createRequire.
                     self.allowed_references.insert(identifier.span);
                 } else if symbol.is_some_and(|symbol| self.requires.contains(&symbol))
-                    || (symbol.is_none() && self.implicit && identifier.name == "require")
+                    || ((symbol.is_none() || symbol == self.ambient)
+                        && self.implicit
+                        && identifier.name == "require")
                 {
                     self.allowed_references.insert(identifier.span);
                     if call.optional {
@@ -892,7 +916,10 @@ impl<'a> Visit<'a> for CreateRequireCalls<'_, '_> {
                         .get_reference(identifier.reference_id())
                         .symbol_id()
                     {
-                        Some(symbol) => self.requires.contains(&symbol),
+                        Some(symbol) => {
+                            self.requires.contains(&symbol)
+                                || (Some(symbol) == self.ambient && self.implicit)
+                        }
                         None => self.implicit && identifier.name == "require",
                     } =>
             {

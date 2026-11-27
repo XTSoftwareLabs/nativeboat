@@ -1315,7 +1315,9 @@ fn typescript_compiled_to_commonjs_requires_and_reads_esmodule_defaults() {
     // TypeScript elsewhere keeps Node's interop: the default is
     // `module.exports`.
     let files: std::collections::HashMap<PathBuf, ModuleSource> = [
-        ("plugin/main.ts", "import Reporter from 'reporter.cjs'; import plain from 'plain.cjs'; import * as other from 'other.ts'; const dep = require('dep.cjs'); export const result = [new Reporter().name, plain.kind, dep.value, other.kind].join('|');", ModuleKind::EsModule),
+        ("plugin/main.ts", "import Reporter from 'reporter.cjs'; import plain from 'plain.cjs'; import * as other from 'other.ts'; import { later } from 'plugin/declared.ts'; const dep = require('dep.cjs'); export const result = [new Reporter().name, plain.kind, dep.value, other.kind, later()].join('|');", ModuleKind::EsModule),
+        // Its own declaration of `require` emits nothing.
+        ("plugin/declared.ts", "declare function require(path: string): any; export function later() { return require('dep.cjs').value + '!'; }", ModuleKind::EsModule),
         ("reporter.cjs", "Object.defineProperty(exports, '__esModule', { value: true }); class Reporter { constructor() { this.name = 'reporter'; } } exports.default = Reporter;", ModuleKind::CommonJs),
         ("plain.cjs", "module.exports = { kind: 'plain' };", ModuleKind::CommonJs),
         ("dep.cjs", "exports.value = 'required';", ModuleKind::CommonJs),
@@ -1340,7 +1342,7 @@ fn typescript_compiled_to_commonjs_requires_and_reads_esmodule_defaults() {
             &module,
             "let value = ops::get(&mut realm, &exports, &Key::name(\"result\")).unwrap(); println!(\"{}\", show(&mut realm, &value));"
         ),
-        "reporter|plain|required|object"
+        "reporter|plain|required|object|required!"
     );
 }
 
