@@ -13,6 +13,7 @@ mod package_use;
 mod packages;
 mod prepare;
 mod resources;
+mod script_templates;
 pub mod steps;
 mod tailwind_tool;
 mod vite_glob;

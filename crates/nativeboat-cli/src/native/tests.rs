@@ -7785,6 +7785,76 @@ fn inserted_scripts_get_their_load_event_before_the_next_runs() {
     );
 }
 
+/// A script a page builds from a template literal and inserts runs as the
+/// template compiled it: a substitution in a string is that string's text,
+/// one standing for an expression is evaluated, as VS Code's webview host
+/// builds the script that defines `acquireVsCodeApi`.
+#[test]
+#[ignore = "requires NATIVEBOAT_RENDERER_TOOLCHAIN with packaged renderer libraries"]
+fn inserted_scripts_built_from_templates_run() {
+    let sysroot = PathBuf::from(std::env::var_os("NATIVEBOAT_RENDERER_TOOLCHAIN").unwrap());
+    assert!(sysroot.join("renderer-libs").is_dir());
+    let fixture = Fixture::new(&[
+        (
+            "package.json",
+            r#"{"name":"native-template-test","type":"module","main":"main.ts","devDependencies":{"electron":"44"}}"#,
+        ),
+        (
+            "main.ts",
+            "import { app, BrowserWindow, ipcMain } from 'electron';\n\
+             ipcMain.on('seen', (_event, value) => { console.log('seen', value); app.quit(); });\n\
+             setTimeout(() => { console.log('lost'); app.quit(); }, 5000);\n\
+             new BrowserWindow({ show: false, webPreferences: { preload: './preload.ts' } }).loadFile('index.html');",
+        ),
+        (
+            "index.html",
+            "<!doctype html><html><head><script type=module src='./page.js'></script></head><body></body></html>",
+        ),
+        (
+            "preload.ts",
+            "import { contextBridge, ipcRenderer } from 'electron';\n\
+             contextBridge.exposeInMainWorld('api', { send: (channel, value) => ipcRenderer.send(channel, value) });",
+        ),
+        (
+            "page.js",
+            r#"const build = (name, state, many) => `
+  globalThis.templated = (function () {
+    const key = '${name}';
+    let state = ${state};
+    let calls = 0;
+    return () => { calls += 1; if (calls > 1 && !${many}) throw new Error('once'); return key + ':' + JSON.stringify(state); };
+  })();
+`;
+const script = document.createElement('script');
+script.textContent = build('api', 'JSON.parse(decodeURIComponent("%7B%22n%22%3A1%7D"))', true);
+document.head.appendChild(script);
+api.send('seen', `${globalThis.templated()} ${globalThis.templated()}`);"#,
+        ),
+    ]);
+    let mut session = shimforge::Session::new();
+    let select = shimforge::mock!(
+        session,
+        select_toolchain,
+        fn(Option<&Path>, &Path) -> Toolchain
+    );
+    select.expect().returning(move |_, _| Toolchain {
+        rustc: sysroot.join("bin/rustc.exe"),
+        sysroot: Some(sysroot.clone()),
+    });
+    let (code, stdout, stderr) = run(&fixture, &["--out", "native-output"]);
+    assert_eq!(code, 0, "{stdout}{stderr}");
+    let executed = Command::new(fixture.path("native-output/native-template-test.exe"))
+        .output()
+        .unwrap();
+    assert!(executed.status.success(), "{executed:?}");
+    assert_eq!(
+        String::from_utf8_lossy(&executed.stdout),
+        "seen api:{\"n\":1} api:{\"n\":1}\n",
+        "{}",
+        String::from_utf8_lossy(&executed.stderr)
+    );
+}
+
 /// `@vscode/sqlite3`'s binding over the runtime's engine, as VS Code's
 /// storage drives it: open, `exec`, a prepared upsert with a Buffer value,
 /// `all`, an error with SQLite's code, close, and the file opened again.

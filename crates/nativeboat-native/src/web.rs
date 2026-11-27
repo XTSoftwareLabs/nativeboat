@@ -375,6 +375,72 @@ fn host(realm: &Realm) -> Object {
 /// adds. `import(url)` loads the compiled script a URL names, as a worker's
 /// script runs; `importScript(url)` runs one before it returns, as
 /// `importScripts` does; `close()` ends the worker once its task returns.
+/// The script templates the program compiled (see the CLI's
+/// `script_templates`): the fixed text around each one's substitutions,
+/// and the key of the script it compiled to.
+pub type ScriptTemplates = &'static [(&'static [&'static str], &'static str)];
+
+type ScriptTemplate = (&'static [&'static str], &'static str);
+
+static TEMPLATES: core::sync::atomic::AtomicPtr<ScriptTemplate> =
+    core::sync::atomic::AtomicPtr::new(core::ptr::null_mut());
+static TEMPLATE_COUNT: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
+
+/// Registers the program's script templates.
+pub fn register_script_templates(templates: ScriptTemplates) {
+    TEMPLATE_COUNT.store(templates.len(), core::sync::atomic::Ordering::Release);
+    TEMPLATES.store(
+        templates.as_ptr().cast_mut(),
+        core::sync::atomic::Ordering::Release,
+    );
+}
+
+/// The substitutions that make `text` of a template's fixed parts, `quasis`.
+fn template_holes<'t>(text: &'t str, quasis: &[&str]) -> Option<Vec<&'t str>> {
+    let (first, rest) = quasis.split_first()?;
+    let text = text.strip_prefix(first)?;
+    let Some((last, middle)) = rest.split_last() else {
+        return text.is_empty().then(Vec::new);
+    };
+    let mut remaining = text.strip_suffix(last)?;
+    let mut holes = Vec::new();
+    for quasi in middle {
+        let at = remaining.find(quasi)?;
+        holes.push(&remaining[..at]);
+        remaining = &remaining[at + quasi.len()..];
+    }
+    holes.push(remaining);
+    Some(holes)
+}
+
+/// Runs the script a page inserted with the text `text`, as the template it
+/// was made from compiled it: whether a template made it.
+pub(crate) fn run_script_template(realm: &mut Realm, text: &str) -> Result<bool, Thrown> {
+    let pointer = TEMPLATES.load(core::sync::atomic::Ordering::Acquire);
+    if pointer.is_null() {
+        return Ok(false);
+    }
+    let count = TEMPLATE_COUNT.load(core::sync::atomic::Ordering::Acquire);
+    // SAFETY: `register_script_templates` stored a static slice's pointer
+    // and length.
+    let templates: ScriptTemplates = unsafe { core::slice::from_raw_parts(pointer, count) };
+    for (quasis, key) in templates {
+        let Some(holes) = template_holes(text, quasis) else {
+            continue;
+        };
+        let Some(entry) = realm.script_entry(key) else {
+            continue;
+        };
+        let namespace = realm.load_entry_now(entry)?;
+        let run = ops::get_named(realm, &namespace, "default")?;
+        let holes: Vec<Value> = holes.into_iter().map(Value::str).collect();
+        let holes = Value::Object(realm.array(holes));
+        ops::call(realm, &run, Value::Undefined, &[holes])?;
+        return Ok(true);
+    }
+    Ok(false)
+}
+
 pub(crate) fn worker_host(realm: &mut Realm) -> Object {
     let host = host(realm);
     let import = realm.function("import", 1, false, |realm, _, args| {

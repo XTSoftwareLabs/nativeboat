@@ -19,6 +19,9 @@ on:
       node:
         description: Node.js version
         default: '22.21.1'
+      environment:
+        description: NAME=VALUE settings for the application's run, separated by semicolons
+        default: ''
 
 permissions:
   contents: read
@@ -101,8 +104,14 @@ jobs:
             Set-Content "$env:ROOT\result\files.txt"
       - name: Run
         shell: pwsh
+        env:
+          SETTINGS: ${{ inputs.environment }}
         run: |
           $executable = Get-ChildItem "$env:ROOT\out" -Filter *.exe | Select-Object -First 1
+          foreach ($setting in $env:SETTINGS -split ';' | Where-Object { $_ }) {
+            $name, $value = $setting -split '=', 2
+            Set-Item "env:$($name.Trim())" $value
+          }
           ./scripts/app-snapshot.ps1 -Executable $executable.FullName -OutputDirectory "$env:ROOT\result" -WaitSeconds 20
       - uses: actions/upload-artifact@v4
         if: always()

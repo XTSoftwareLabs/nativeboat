@@ -570,62 +570,83 @@ fn compile_with(
     renderer_options.named_scripts = project.scripts.clone();
     errors.extend(renderer_option_errors);
     let mut renderers: Vec<CompiledContext> = Vec::new();
-    let mut renderer_entries = Vec::new();
+    // Script templates the renderer sources hold are compiled into every
+    // renderer graph: the graphs compile again when they find new ones.
+    crate::script_templates::scanning(true);
     crate::package_use::pages(true);
-    for page in &project.pages {
-        match renderer_scripts(project, page) {
-            Ok((mut entries, script_errors)) => {
-                errors.extend(script_errors);
-                // With the Web API prelude, a page without scripts still gets
-                // a renderer, which lays out and paints its document.
-                if !entries.is_empty() || web {
-                    if web {
-                        entries.insert(0, crate::web_prelude::path(&project.root));
-                    }
-                    // Pages that load the same scripts share one compiled
-                    // graph instead of compiling it again.
-                    if let Some(shared) = renderer_entries
-                        .iter()
-                        .position(|compiled: &Vec<PathBuf>| *compiled == entries)
-                    {
-                        let pages = &mut renderers[shared].pages;
-                        if !pages.contains(&page.source) {
-                            pages.push(page.source.clone());
+    let mut templates = crate::script_templates::count();
+    loop {
+        let mut renderer_errors = Vec::new();
+        let mut renderer_entries = Vec::new();
+        renderers.clear();
+        for page in &project.pages {
+            match renderer_scripts(project, page) {
+                Ok((mut entries, script_errors)) => {
+                    renderer_errors.extend(script_errors);
+                    // With the Web API prelude, a page without scripts still gets
+                    // a renderer, which lays out and paints its document.
+                    if !entries.is_empty() || web {
+                        if web {
+                            entries.insert(0, crate::web_prelude::path(&project.root));
                         }
-                        continue;
-                    }
-                    let entry_count = entries.len();
-                    // Script entries from one page share this compiled graph,
-                    // while each page gets its own runtime context/cache.
-                    match graph_entries_with_stylesheets(
-                        project,
-                        &entries,
-                        &project.renderer_aliases,
-                        Target::RendererImport,
-                        false,
-                        &renderer_options,
-                        &mut stylesheets,
-                        components,
-                        sheets,
-                    ) {
-                        // Package scripts the page may load while it runs are
-                        // lazy entries of its graph.
-                        Ok(module) => {
-                            renderer_entries.push(entries);
-                            renderers.push(CompiledContext {
-                                entry: page.source.clone(),
-                                pages: vec![page.source.clone()],
-                                entry_count,
-                                module,
-                            });
+                        // Pages that load the same scripts share one compiled
+                        // graph instead of compiling it again.
+                        if let Some(shared) = renderer_entries
+                            .iter()
+                            .position(|compiled: &Vec<PathBuf>| *compiled == entries)
+                        {
+                            let pages = &mut renderers[shared].pages;
+                            if !pages.contains(&page.source) {
+                                pages.push(page.source.clone());
+                            }
+                            continue;
                         }
-                        Err(found) => errors.extend(found),
+                        let entry_count = entries.len();
+                        // Script entries from one page share this compiled graph,
+                        // while each page gets its own runtime context/cache.
+                        match graph_entries_with_stylesheets(
+                            project,
+                            &entries,
+                            &project.renderer_aliases,
+                            Target::RendererImport,
+                            false,
+                            &renderer_options,
+                            &mut stylesheets,
+                            components,
+                            sheets,
+                        ) {
+                            // Package scripts the page may load while it runs are
+                            // lazy entries of its graph.
+                            Ok(module) => {
+                                renderer_entries.push(entries);
+                                renderers.push(CompiledContext {
+                                    entry: page.source.clone(),
+                                    pages: vec![page.source.clone()],
+                                    entry_count,
+                                    module,
+                                });
+                            }
+                            Err(found) => renderer_errors.extend(found),
+                        }
                     }
                 }
+                Err(found) => renderer_errors.extend(found),
             }
-            Err(found) => errors.extend(found),
         }
+        if crate::script_templates::count() == templates {
+            errors.extend(renderer_errors);
+            break;
+        }
+        templates = crate::script_templates::count();
+        renderer_options.named_scripts = project
+            .scripts
+            .iter()
+            .cloned()
+            .chain(crate::script_templates::named_scripts(&project.root))
+            .collect();
     }
+    crate::script_templates::scanning(false);
+    crate::script_templates::report();
     crate::package_use::pages(false);
     NativeCompilation {
         main,
@@ -1273,10 +1294,14 @@ fn graph_entries_with_stylesheets(
             if let Some(source) = crate::web_prelude::source(path) {
                 return Some(source);
             }
+            if let Some(source) = crate::script_templates::source(path) {
+                return Some(source);
+            }
             let text = match crate::classic_script::source(path) {
                 Some(text) => text,
                 None => std::fs::read_to_string(path).ok()?,
             };
+            crate::script_templates::scan(path, &text);
             crate::package_use::compiled(path);
             if path.extension().is_some_and(|extension| extension == "css") {
                 // A Tailwind CSS sheet was built with its imports inlined.
@@ -4339,6 +4364,7 @@ fn linked_entry_source(
         );
     }
     source.push_str(&script_registration(scripts));
+    source.push_str(&crate::script_templates::registration());
     let entries = (0..entry_count)
         .map(|entry| entry.to_string())
         .collect::<Vec<_>>()
@@ -5385,7 +5411,11 @@ fn context_rust_source(compilation: &NativeCompilation) -> String {
                 "// {kind} execution context for {:?}.\n#[allow(dead_code)] mod {kind}_{index} {{\n{}\n#[allow(dead_code)] pub fn initialize(realm: &mut Realm) -> Result<Vec<Object>, Thrown> {{ {style_registration}{}module_entries(realm, &[{entries}]) }}\n}}",
                 context.entry,
                 context.module.rust_source(),
-                script_registration(context.module.scripts()),
+                format_args!(
+                    "{}{}",
+                    script_registration(context.module.scripts()),
+                    crate::script_templates::registration()
+                ),
             );
         }
     }
