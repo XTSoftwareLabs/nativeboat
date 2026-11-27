@@ -281,6 +281,20 @@ pub(crate) fn source(path: &Path) -> Option<ModuleSource> {
     })
 }
 
+/// Names the templates the build compiled, by the start of their text.
+pub(crate) fn report() {
+    TEMPLATES.with_borrow(|templates| {
+        for template in templates {
+            let start: String = template
+                .quasis
+                .first()
+                .map(|quasi| quasi.trim_start().chars().take(60).collect())
+                .unwrap_or_default();
+            eprintln!("nativeboat: script template {start:?}");
+        }
+    });
+}
+
 /// The Rust that registers the templates with the runtime: each one's fixed
 /// text and key.
 pub(crate) fn registration() -> String {

@@ -645,6 +645,7 @@ fn compile_with(
             .collect();
     }
     crate::script_templates::scanning(false);
+    crate::script_templates::report();
     NativeCompilation {
         main,
         forks,
