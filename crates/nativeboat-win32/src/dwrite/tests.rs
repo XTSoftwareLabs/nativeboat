@@ -410,3 +410,23 @@ fn faces_are_made_ahead_on_worker_threads() {
         DeleteObject(font);
     }
 }
+
+/// A family the system does not have, such as a web font the process
+/// loaded through GDI, is not laid out by DirectWrite, which would draw it
+/// in a fallback font: GDI draws it instead.
+#[test]
+fn families_the_system_lacks_are_left_to_gdi() {
+    let tabular = [(u32::from_le_bytes(*b"tnum"), 1)];
+    assert!(width(&units("0"), "Segoe UI", 16.0, 400, false, &tabular).is_some());
+    assert!(
+        width(
+            &units("0"),
+            "NativeBoat Missing Family",
+            16.0,
+            400,
+            false,
+            &tabular
+        )
+        .is_none()
+    );
+}
