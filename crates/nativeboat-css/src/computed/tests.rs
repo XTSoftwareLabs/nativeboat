@@ -63,6 +63,7 @@ const SAMPLES: &[(&str, &str)] = &[
     ("grid-auto-columns", "10px"),
     ("grid-auto-rows", "min-content"),
     ("grid-auto-flow", "column"),
+    ("grid-template-areas", "\"a b\""),
     ("grid-column-start", "1"),
     ("grid-column-end", "span 2"),
     ("grid-row-start", "2"),
