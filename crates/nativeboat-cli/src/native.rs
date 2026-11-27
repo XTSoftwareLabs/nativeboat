@@ -1302,7 +1302,7 @@ fn graph_entries_with_stylesheets(
                 None => std::fs::read_to_string(path).ok()?,
             };
             crate::script_templates::scan(path, &text);
-            crate::package_use::compiled(path);
+            crate::package_use::compiled(path, &text);
             if path.extension().is_some_and(|extension| extension == "css") {
                 // A Tailwind CSS sheet was built with its imports inlined.
                 let (text, mut errors) = match sheets.get(path) {
@@ -3285,14 +3285,28 @@ fn link_inner(
     // replace any of them, as in an electron-builder package. Files inside
     // the output folder are the build's own.
     let output = nativeboat_bundler::resolve::normalize(directory);
-    // Where a bundler builds the pages, the packages only pages use were
-    // compiled and embedded: their files stay behind.
+    // Where a bundler builds the pages, what they use was compiled and
+    // embedded, and the main process is compiled too: only the files the
+    // Node.js side names ship, except those of folders extraResources and
+    // extraFiles copy, which a packaged application reads from there.
     let bundled = project.layout != Layout::Plain;
+    let copied: std::collections::BTreeSet<PathBuf> = project
+        .extra_files
+        .iter()
+        .filter_map(|file| file.source.parent())
+        .map(nativeboat_bundler::resolve::normalize)
+        .collect();
     let application_files: Vec<_> = project
         .application_files
         .iter()
         .filter(|file| !nativeboat_bundler::resolve::normalize(&file.source).starts_with(&output))
-        .filter(|file| !bundled || crate::package_use::used(&file.source))
+        .filter(|file| {
+            !bundled
+                || (crate::package_use::named(&file.destination)
+                    && !file.source.parent().is_some_and(|folder| {
+                        copied.contains(&nativeboat_bundler::resolve::normalize(folder))
+                    }))
+        })
         .cloned()
         .collect();
     // The application's own files are in `resources/app`, as in a
