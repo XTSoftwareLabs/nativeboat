@@ -977,6 +977,19 @@ pub fn css_property(name: &str, value: &str) -> Option<Feature> {
         "display" if value.contains("contents") => ("contents", "display: contents", Supported, ""),
         "position" if value.contains("sticky") => ("sticky", "position: sticky", Supported, ""),
         "clip" => ("clip", "CSS rectangular clipping", Supported, ""),
+        "appearance" | "-webkit-appearance"
+            if !matches!(
+                value.trim().trim_end_matches("!important").trim(),
+                "auto" | "none"
+            ) =>
+        {
+            (
+                "appearance",
+                "CSS appearance",
+                Partial,
+                "none takes form controls' native look away and auto keeps it; other values keep the native look",
+            )
+        }
         name if name.starts_with("scroll-margin") || name.starts_with("scroll-padding") => {
             ("scroll-spacing", "CSS scroll spacing", Supported, "")
         }

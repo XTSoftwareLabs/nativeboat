@@ -122,6 +122,7 @@ const NO_EFFECT: &[&str] = &[
     "src",
     "unicode-range",
     "touch-action",
+    "touch-callout",
     "tap-highlight-color",
     "text-size-adjust",
     "will-change",
@@ -178,6 +179,11 @@ const INITIAL_VALUES: &[(&str, &[&str])] = &[
 /// Whether a declaration of a property the style engine does not implement
 /// changes nothing in the native target.
 fn without_effect(name: &str, value: &str) -> bool {
+    // Chromium knows no vendor prefix but `-webkit-`: it ignores such
+    // properties, as the native target does.
+    if name.starts_with('-') && !name.starts_with("-webkit-") && !name.starts_with("--") {
+        return true;
+    }
     let name = ["-webkit-", "-moz-", "-ms-"]
         .iter()
         .find_map(|prefix| name.strip_prefix(prefix))
