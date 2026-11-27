@@ -916,9 +916,11 @@ impl<'a> Visit<'a> for CreateRequireCalls<'_, '_> {
                         .get_reference(identifier.reference_id())
                         .symbol_id()
                     {
-                        Some(symbol) => self.requires.contains(&symbol),
+                        Some(symbol) => {
+                            self.requires.contains(&symbol)
+                                || (Some(symbol) == self.ambient && self.implicit)
+                        }
                         None => self.implicit && identifier.name == "require",
-                        Some(symbol) if Some(symbol) == self.ambient => self.implicit,
                     } =>
             {
                 self.allowed_references.insert(identifier.span);
