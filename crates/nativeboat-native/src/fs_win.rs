@@ -1985,6 +1985,15 @@ pub fn statfs(path: &[u16]) -> Result<StatFs, i32> {
     })
 }
 
+/// Whether `path` (without a terminator) names a directory.
+pub fn is_directory(path: &[u16]) -> bool {
+    const FILE_ATTRIBUTE_DIRECTORY: u32 = 0x10;
+    let name: Vec<u16> = path.iter().copied().chain([0]).collect();
+    // SAFETY: a null-terminated name.
+    let attributes = unsafe { GetFileAttributesW(name.as_ptr()) };
+    attributes != u32::MAX && attributes & FILE_ATTRIBUTE_DIRECTORY != 0
+}
+
 /// Electron applications reach files in their packed `app.asar` archives
 /// and the `.asar.unpacked` folders beside them; a native build has neither,
 /// its files being in the folders those archives were packed from. `path`

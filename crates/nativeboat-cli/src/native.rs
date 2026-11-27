@@ -3263,9 +3263,13 @@ fn link_inner(
         .filter(|file| !nativeboat_bundler::resolve::normalize(&file.source).starts_with(&output))
         .cloned()
         .collect();
-    copy_extra_files(&application_files, directory)?;
+    // The application's own files are in `resources/app`, as in a
+    // packaged Electron application, which programs find their install
+    // folder and resources from.
+    let app_folder = directory.join("resources").join("app");
+    copy_extra_files(&application_files, &app_folder)?;
     copy_extra_files(&project.extra_files, directory)?;
-    write_plugin_files(project, compilation, directory)?;
+    write_plugin_files(project, compilation, &app_folder)?;
     // electron-updater reads its feed from the resources folder.
     if let Some(feed) = &project.updater_config {
         let path = directory.join("resources").join("app-update.yml");

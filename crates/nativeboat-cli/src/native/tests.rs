@@ -1265,10 +1265,10 @@ socket.onerror = (event) => out.push('error', event.message);
     assert_eq!(server.join().unwrap(), ["1:5", "2:3", "2:4", "8:6"]);
 }
 
-/// An application's modules and its installed packages run from the folder
-/// the executable is in, as a packaged application's do: `import.meta` names
-/// that folder, and a package reads the data file that ships beside the
-/// executable, not the build's copy.
+/// An application's modules and its installed packages run from the
+/// `resources/app` folder beside the executable, as a packaged
+/// application's do: `import.meta` names that folder, and a package reads
+/// the data file that ships there, not the build's copy.
 #[test]
 fn compiles_and_runs_modules_from_the_application_folder() {
     let fixture = Fixture::new(&[
@@ -1278,7 +1278,7 @@ fn compiles_and_runs_modules_from_the_application_folder() {
         ),
         (
             "main.mjs",
-            "import { dirname } from 'node:path';\nimport { createRequire } from 'node:module';\nconst require = createRequire(import.meta.url);\nconst data = require('dep');\nconsole.log([data, import.meta.dirname === dirname(process.execPath), import.meta.filename === process.execPath.replace(/[^\\\\]+$/, 'main.mjs'), import.meta.url.startsWith('file:///') && import.meta.url.endsWith('/main.mjs')].join('|'));\n",
+            "import { dirname, join } from 'node:path';\nimport { createRequire } from 'node:module';\nconst require = createRequire(import.meta.url);\nconst data = require('dep');\nconst app = join(dirname(process.execPath), 'resources', 'app');\nconsole.log([data, import.meta.dirname === app, import.meta.filename === join(app, 'main.mjs'), import.meta.url.startsWith('file:///') && import.meta.url.endsWith('/resources/app/main.mjs')].join('|'));\n",
         ),
         (
             "node_modules/dep/package.json",
@@ -1294,7 +1294,7 @@ fn compiles_and_runs_modules_from_the_application_folder() {
     assert_eq!(code, 0, "{out}{err}");
     assert!(
         fixture
-            .path("native-output/node_modules/dep/data.txt")
+            .path("native-output/resources/app/node_modules/dep/data.txt")
             .is_file()
     );
     // The build's copy is gone: the program reads the shipped one.
@@ -1396,7 +1396,7 @@ import Module from 'module';
 import path from 'path';
 import { realpathSync } from 'fs';
 const require = createRequire(import.meta.url);
-const dir = path.dirname(process.execPath);
+const dir = path.join(path.dirname(process.execPath), 'resources', 'app');
 const original = (Module as any)._load;
 (Module as any)._load = function (request: string, parent: any) {
   if (request === 'host-api') {
@@ -1460,7 +1460,7 @@ try {
     for file in ["main.js", "helper.js", "data.txt"] {
         assert!(
             fixture
-                .path("native-output/plugins/a/out")
+                .path("native-output/resources/app/plugins/a/out")
                 .join(file)
                 .is_file(),
             "{file}"
