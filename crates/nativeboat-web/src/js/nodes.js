@@ -25,7 +25,10 @@ const documentTypes = new WeakMap(), implementations = new WeakMap();
 // document, as browsers run them: the page's own compiled scripts and the
 // package scripts it may load are found by URL, and the element gets `load`
 // when the script has run, or `error` when it is not compiled or throws.
-// Scripts parsed from markup do not run, as in browsers.
+// A classic script runs in a task of its own and gets `load` right after,
+// before another script runs, as AMD loaders that take the `define` call a
+// script made when it loads expect. Scripts parsed from markup do not run,
+// as in browsers.
 const startedScripts = new WeakSet();
 const scriptTypes = /^(?:(?:text|application)\/(?:java|ecma)script|module)$/i;
 const startScripts = (node) => {
@@ -36,6 +39,19 @@ const startScripts = (node) => {
     const type = script.getAttribute('type');
     if (startedScripts.has(script) || src === null || (type && type.trim() && !scriptTypes.test(type.trim()))) continue;
     startedScripts.add(script);
+    if (!(type && type.trim().toLowerCase() === 'module') && typeof page.runScript === 'function') {
+      const url = new URL(src, document.baseURI).href;
+      setTimeout(() => {
+        let found = true;
+        try {
+          found = page.runScript(url);
+        } catch (error) {
+          host.report(error, false);
+        }
+        script.dispatchEvent(new Event(found ? 'load' : 'error'));
+      }, 0);
+      continue;
+    }
     let loading;
     try {
       loading = page.loadScript(new URL(src, document.baseURI).href);

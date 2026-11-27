@@ -341,6 +341,16 @@ pub(super) const OPERATIONS: &[(&str, PageOp)] = &[
     ("loadScript", |_, realm, args| {
         realm.load_script(arg(args, 0))
     }),
+    // A classic script the page inserts, by URL, run now: whether one was
+    // compiled for it.
+    ("runScript", |_, realm, args| {
+        let url = text(realm, args, 0)?;
+        let Some(entry) = realm.script_entry(&url) else {
+            return Ok(Value::Boolean(false));
+        };
+        realm.load_entry_now(entry)?;
+        Ok(Value::Boolean(true))
+    }),
     ("rect", |page, realm, args| {
         let node = node(realm, args, 0)?;
         Ok(rect(realm, page.rect(node)))
