@@ -1,7 +1,8 @@
 # Runs a native VS Code build with its own user data and extensions folders,
 # a folder and its README open, and settings that skip the start page and
 # the AI sign-in, then saves a window snapshot, its output and VS Code's
-# logs into -OutputDirectory. -Environment sets variables such as
+# logs into -OutputDirectory. A task the folder runs when it opens shows the
+# integrated terminal. -Environment sets variables such as
 # NATIVEBOAT_TRACE_IPC=1 for the run, and -Settings is a JSON object of
 # more settings, such as {"workbench.editorAssociations": {...}}.
 param(
@@ -28,11 +29,24 @@ $values = @{
     'update.mode' = 'none'
     'extensions.autoUpdate' = $false
     'workbench.enableExperiments' = $false
+    'task.allowAutomaticTasks' = 'on'
 }
 if ($Settings) {
     foreach ($property in ($Settings | ConvertFrom-Json).PSObject.Properties) { $values[$property.Name] = $property.Value }
 }
 $values | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $user 'settings.json')
+$tasks = Join-Path $Folder '.vscode'
+New-Item -ItemType Directory -Force $tasks | Out-Null
+@{
+    version = '2.0.0'
+    tasks = @(@{
+        label = 'native terminal'
+        type = 'shell'
+        command = 'echo native terminal works; Get-Location'
+        runOptions = @{ runOn = 'folderOpen' }
+        presentation = @{ reveal = 'always' }
+    })
+} | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $tasks 'tasks.json')
 $arguments = "--user-data-dir=$OutputDirectory\data", "--extensions-dir=$OutputDirectory\extensions",
     '--enable-smoke-test-driver', '--disable-workspace-trust', $Folder, (Join-Path $Folder 'README.md')
 & (Join-Path $PSScriptRoot '..\app-snapshot.ps1') -Executable $executable.FullName -OutputDirectory $OutputDirectory `
