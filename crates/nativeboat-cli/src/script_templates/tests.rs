@@ -61,9 +61,15 @@ fn scanned_templates_become_modules() {
     let root = Path::new("C:/app");
     scanning(true);
     let before = count();
+    // Only sources that make script elements are scanned.
+    scan(
+        Path::new("C:/app/style.js"),
+        "export const make = (name) => `\\n window[\"${name}\"] = function () { return 0; };\\n console.log('styled');\\n`;",
+    );
+    assert_eq!(count(), before);
     scan(
         Path::new("C:/app/page.js"),
-        "export const make = (name) => `\\n window[\"${name}\"] = function () { return 1; };\\n console.log('defined');\\n`;",
+        "export const make = (name) => `\\n window[\"${name}\"] = function () { return 1; };\\n console.log('defined');\\n`;\nexport const element = () => document.createElement('script');",
     );
     scanning(false);
     assert_eq!(count(), before + 1);

@@ -54,9 +54,13 @@ pub(crate) fn count() -> usize {
 }
 
 /// Finds the script templates of a source the build compiles, while
-/// [`scanning`].
+/// [`scanning`]: in sources that make script elements, which run the
+/// scripts pages build.
 pub(crate) fn scan(path: &Path, text: &str) {
-    if !SCANNING.with(Cell::get) || !text.contains("${") {
+    let makes_scripts = ["'script'", "\"script\"", "`script`"]
+        .iter()
+        .any(|name| text.contains(&format!("createElement({name})")));
+    if !SCANNING.with(Cell::get) || !text.contains("${") || !makes_scripts {
         return;
     }
     let Ok(source_type) = SourceType::from_path(path) else {
