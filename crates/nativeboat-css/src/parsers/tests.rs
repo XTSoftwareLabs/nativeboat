@@ -964,7 +964,11 @@ fn grid_placement() {
     assert_eq!(run(grid_line, "span 3"), Some(GridLine::Span(3)));
     assert_eq!(run(grid_line, "3 span"), Some(GridLine::Span(3)));
     assert_eq!(run(grid_line, "span"), Some(GridLine::Span(1)));
-    for invalid in ["0", "span -1", "name", "auto 1", "1.5", ""] {
+    assert_eq!(
+        run(grid_line, "header"),
+        Some(GridLine::Named("header".to_owned()))
+    );
+    for invalid in ["0", "span -1", "name 1", "auto 1", "1.5", ""] {
         assert_eq!(run(grid_line, invalid), None, "{invalid}");
     }
     assert_eq!(run(grid_auto_flow, "row"), Some(GridAutoFlow::default()));
@@ -985,6 +989,38 @@ fn grid_placement() {
     assert_eq!(run(grid_auto_flow, "diagonal"), None);
     assert_eq!(run(grid_auto_flow, ""), None);
     assert_eq!(run(grid_auto_flow, "1"), None);
+}
+
+#[test]
+fn grid_template_areas() {
+    let areas = run(
+        super::grid_template_areas,
+        "'head head' 'side main' '. main'",
+    )
+    .unwrap();
+    assert_eq!((areas.rows, areas.columns), (3, 2));
+    let lines = |name: &str| {
+        let area = areas.areas.iter().find(|area| area.name == name).unwrap();
+        (
+            area.row_start,
+            area.row_end,
+            area.column_start,
+            area.column_end,
+        )
+    };
+    assert_eq!(lines("head"), (1, 2, 1, 3));
+    assert_eq!(lines("side"), (2, 3, 1, 2));
+    assert_eq!(lines("main"), (2, 4, 2, 3));
+    assert_eq!(areas.to_css(), "\"head head\" \"side main\" \". main\"");
+    assert_eq!(
+        run(super::grid_template_areas, "none"),
+        Some(GridTemplateAreas::default())
+    );
+    // Rows of different lengths, areas that are not rectangles, and other
+    // characters make the value invalid.
+    for invalid in ["'a b' 'c'", "'a b' 'b a'", "'a a' 'a .'", "'a!'", "''", "a"] {
+        assert_eq!(run(super::grid_template_areas, invalid), None, "{invalid}");
+    }
 }
 
 #[test]

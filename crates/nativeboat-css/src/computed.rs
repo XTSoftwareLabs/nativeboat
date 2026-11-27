@@ -249,6 +249,8 @@ pub struct ComputedStyle {
     pub grid_auto_rows: TrackSizes,
     /// `grid-auto-flow`
     pub grid_auto_flow: GridAutoFlow,
+    /// `grid-template-areas`
+    pub grid_template_areas: GridTemplateAreas,
     /// `grid-column-start`
     pub grid_column_start: GridLine,
     /// `grid-column-end`
@@ -554,6 +556,7 @@ impl Default for ComputedStyle {
             grid_auto_columns: TrackSizes::default(),
             grid_auto_rows: TrackSizes::default(),
             grid_auto_flow: GridAutoFlow::default(),
+            grid_template_areas: GridTemplateAreas::default(),
             grid_column_start: GridLine::Auto,
             grid_column_end: GridLine::Auto,
             grid_row_start: GridLine::Auto,
@@ -750,6 +753,7 @@ longhands! {
     GridAutoColumns => "grid-auto-columns", false, parsers::track_sizes, grid_auto_columns;
     GridAutoRows => "grid-auto-rows", false, parsers::track_sizes, grid_auto_rows;
     GridAutoFlow => "grid-auto-flow", false, parsers::grid_auto_flow, grid_auto_flow;
+    GridTemplateAreas => "grid-template-areas", false, parsers::grid_template_areas, grid_template_areas;
     GridColumnStart => "grid-column-start", false, parsers::grid_line, grid_column_start;
     GridColumnEnd => "grid-column-end", false, parsers::grid_line, grid_column_end;
     GridRowStart => "grid-row-start", false, parsers::grid_line, grid_row_start;

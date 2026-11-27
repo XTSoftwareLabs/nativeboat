@@ -500,11 +500,30 @@ pub fn expand(name: &str, values: &[ComponentValue]) -> Option<Longhands> {
         "grid-column" | "grid-row" => {
             let lines = split_slashes(&parts);
             let (start, end) = match lines.as_slice() {
-                [start] => (start.clone(), text("auto")),
+                [start] => (start.clone(), omitted_line(start)),
                 [start, end] => (start.clone(), end.clone()),
                 _ => return None,
             };
             Some(vec![(ids[0], start), (ids[1], end)])
+        }
+        "grid-area" => {
+            // `row-start / column-start / row-end / column-end`: an omitted
+            // column start is the row start's name, and an omitted end the
+            // name its start has, else `auto`.
+            let mut lines = split_slashes(&parts);
+            if lines.is_empty() || lines.len() > 4 {
+                return None;
+            }
+            if lines.len() < 2 {
+                lines.push(omitted_line(&lines[0]));
+            }
+            if lines.len() < 3 {
+                lines.push(omitted_line(&lines[0]));
+            }
+            if lines.len() < 4 {
+                lines.push(omitted_line(&lines[1]));
+            }
+            Some(ids.into_iter().zip(lines).collect())
         }
         _ => {
             let lines = split_slashes(&parts);
@@ -523,6 +542,19 @@ pub fn expand(name: &str, values: &[ComponentValue]) -> Option<Longhands> {
                     .collect(),
             )
         }
+    }
+}
+
+/// The value of a grid line a shorthand leaves out: the name of the line
+/// it pairs with, when that is a name, else `auto`.
+fn omitted_line(line: &[ComponentValue]) -> Vec<ComponentValue> {
+    match line {
+        [ComponentValue::Token(Token::Ident(word))]
+            if !word.eq_ignore_ascii_case("auto") && !word.eq_ignore_ascii_case("span") =>
+        {
+            line.to_vec()
+        }
+        _ => text("auto"),
     }
 }
 
