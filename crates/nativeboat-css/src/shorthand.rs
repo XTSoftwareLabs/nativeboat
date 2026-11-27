@@ -504,6 +504,23 @@ pub fn expand(name: &str, values: &[ComponentValue]) -> Option<Longhands> {
             }
             Some(ids.into_iter().zip(lines).collect())
         }
+        _ => {
+            let lines = split_slashes(&parts);
+            if lines.len() > 4 {
+                return None;
+            }
+            Some(
+                ids.into_iter()
+                    .enumerate()
+                    .map(|(index, id)| {
+                        (
+                            id,
+                            lines.get(index).cloned().unwrap_or_else(|| text("auto")),
+                        )
+                    })
+                    .collect(),
+            )
+        }
     }
 }
 
