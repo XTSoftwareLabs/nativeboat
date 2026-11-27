@@ -5403,7 +5403,7 @@ fn context_rust_source(compilation: &NativeCompilation) -> String {
                 "// {kind} execution context for {:?}.\n#[allow(dead_code)] mod {kind}_{index} {{\n{}\n#[allow(dead_code)] pub fn initialize(realm: &mut Realm) -> Result<Vec<Object>, Thrown> {{ {style_registration}{}module_entries(realm, &[{entries}]) }}\n}}",
                 context.entry,
                 context.module.rust_source(),
-                format!(
+                format_args!(
                     "{}{}",
                     script_registration(context.module.scripts()),
                     crate::script_templates::registration()
