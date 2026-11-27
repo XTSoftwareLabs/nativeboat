@@ -788,8 +788,8 @@ pub fn web(api: &str) -> Option<Feature> {
         ),
         "service-worker" => (
             "Service Workers",
-            Unsupported,
-            "no browser networking layer",
+            Partial,
+            "registered workers run in realms of their own on the page's thread and install and activate at once; their fetch event answers the fetch() calls, images and linked style sheets of the pages they control, not their scripts, fonts or navigations; caches live in memory",
         ),
         "websocket" => (
             "WebSocket",

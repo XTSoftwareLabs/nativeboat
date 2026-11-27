@@ -111,5 +111,9 @@ fn document_write_replaces_the_document_and_loads_it_again() {
       document.write('<p id=new>a');document.writeln('b</p>');document.close();
       eq(document.getElementById('new').textContent,'ab','written markup');eq(document.body.lastChild.data,'\n','writeln ends its line');eq(document.readyState,'complete','loaded');eq(events.join(),'ready,load','load events');
       document.close();eq(events.length,2,'close without open does nothing');
+      globalThis.writtenErrors=[];document.addEventListener('error',(event)=>writtenErrors.push(event.target.id),true);
+      document.open();document.write('<img id=written src="missing.png">');document.close();
     "#);
+    page.settle();
+    page.check("eq(writtenErrors.join(),'written','written images load');");
 }

@@ -120,6 +120,8 @@ mod realm;
 mod realm_ports;
 mod reflect_builtin;
 mod regexp_builtin;
+#[cfg(feature = "dom")]
+pub mod service_worker;
 pub mod spelling;
 pub(crate) mod sqlite;
 pub mod string;

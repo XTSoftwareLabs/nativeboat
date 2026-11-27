@@ -536,6 +536,13 @@ impl DocumentPage {
             return None;
         }
         let page = self.platform.url();
+        // A sheet the page read itself, as from the service worker that
+        // controls it.
+        if let Some(text) = self.inserted.borrow().get(&link) {
+            let sheet = assets::join_url(&page, href).unwrap_or_else(|| String::from(href));
+            let text = assets::rebase_urls(text, &sheet);
+            return Some(under_media(text, dom.get_attribute(link, "media")));
+        }
         let text = self.sheet_file(&page, href, 0)?;
         Some(under_media(text, dom.get_attribute(link, "media")))
     }
