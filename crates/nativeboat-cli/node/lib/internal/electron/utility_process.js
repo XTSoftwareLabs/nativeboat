@@ -759,7 +759,9 @@ class ChildProcess extends EventEmitter {
       env[PORT_VARIABLE] = String(server.address().port);
       env[TOKEN_VARIABLE] = secret;
       env[KIND_VARIABLE] = this._advanced ? 'node-advanced' : 'node';
-      const child = spawn(process.execPath, args, { cwd: options.cwd, env, windowsHide: true });
+      // As Node starts it: `process.argv` is the executable, the module and
+      // the arguments, which language servers read their options from.
+      const child = spawn(process.execPath, [modulePath, ...args], { cwd: options.cwd, env, windowsHide: true });
       this._child = child;
       if (this.stdin && child.stdin) {
         this.stdin.on('data', (chunk) => child.stdin.write(chunk));
