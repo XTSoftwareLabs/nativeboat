@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.1.0-alpha.7
+
+- Bundled applications (electron-vite, vite-plugin-electron, Forge with
+  Vite) ship only the files their main process, preloads and forked
+  modules name: MarkText's output is back to 27 files from 1,191 with
+  0.1.0-alpha.6. In every layout, test folders and their fixtures,
+  packages' style sheet sources and native build leftovers stay behind,
+  and the application's `files` exclusions apply to package files, as
+  electron-builder applies them.
+- The application's files are in `resources\app` beside the executable,
+  as in a packaged Electron application: `app.getAppPath()`, `__dirname`
+  and module paths point there. `extraResources` are in `resources` and
+  `extraFiles` beside the executable.
+- Scripts that pages build as text from a template literal and insert as
+  `<script>` elements run, compiled ahead of time, as VS Code's webviews
+  define `acquireVsCodeApi`.
+- An inserted classic script runs in a task of its own and fires `load`
+  right after, so AMD loaders get each script's `define`.
+- `fork()` children get the module path in `process.argv`, as in Node.
+- TypeScript that its build compiles to CommonJS calls the module's
+  `require` also when it declares `require` for TypeScript.
+- CSS: `grid-template-areas` and named grid lines in `grid-area`,
+  `grid-row` and `grid-column`; `border-inline-*` and `border-block-*`;
+  Chromium's `-webkit-margin-*` and `-webkit-padding-*` names. Properties
+  with `-moz-`, `-ms-` and `-o-` prefixes are ignored, as Chromium
+  ignores them.
+- Text in web fonts that asks for OpenType features, such as
+  `font-variant-numeric: tabular-nums`, is drawn in its font without the
+  features instead of as missing-glyph boxes.
+- Repainting a small area, such as a caret's blink, draws only what is in
+  that area.
+
 ## 0.1.0-alpha.6
 
 - Fixes builds that failed with `error[E0502]: cannot borrow *realm as
