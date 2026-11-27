@@ -11,6 +11,9 @@ on:
       ref:
         description: VS Code tag or branch
         default: '1.145.0'
+      extra:
+        description: JSON settings merged into scripts/compat/vscode.json for this run (lists are appended)
+        default: ''
 
 permissions:
   contents: read
@@ -63,6 +66,7 @@ jobs:
     with:
       ref: ${{ inputs.ref }}
       stage: 1
+      extra: ${{ inputs.extra }}
   build-2:
     needs: build-1
     if: needs.build-1.outputs.state == 'partial'
@@ -70,6 +74,7 @@ jobs:
     with:
       ref: ${{ inputs.ref }}
       stage: 2
+      extra: ${{ inputs.extra }}
   build-3:
     needs: build-2
     if: needs.build-2.outputs.state == 'partial'
@@ -77,6 +82,7 @@ jobs:
     with:
       ref: ${{ inputs.ref }}
       stage: 3
+      extra: ${{ inputs.extra }}
   build-4:
     needs: build-3
     if: needs.build-3.outputs.state == 'partial'
@@ -84,3 +90,4 @@ jobs:
     with:
       ref: ${{ inputs.ref }}
       stage: 4
+      extra: ${{ inputs.extra }}
