@@ -2944,7 +2944,7 @@ fn record_item(kind: usize, started: u64) {
 /// The paint trace's report of what each kind of item took to draw since
 /// the last report, slowest first, and the counts reset.
 pub(crate) fn item_times() -> alloc::string::String {
-    let mut times: alloc::vec::Vec<(f64, &str)> = ITEM_TIMES
+    let mut times: alloc::vec::Vec<(f64, &str, u64)> = ITEM_TIMES
         .iter()
         .zip(ITEM_KINDS)
         .zip(&ITEM_COUNTS)
