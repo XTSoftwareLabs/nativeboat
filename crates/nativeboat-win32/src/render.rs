@@ -1909,11 +1909,19 @@ impl Painter {
         while index < items.len() {
             if let DisplayItem::PushFilter(filters) = &items[index] {
                 let end = bounds::group_end(items, index);
+                let started = crate::window::microseconds();
                 self.filter_group(filters, &items[index + 1..end]);
+                if crate::trace::painting() {
+                    record_item(17, started);
+                }
                 index = end;
             } else if let DisplayItem::PushMask(mask) = &items[index] {
                 let end = bounds::group_end(items, index);
+                let started = crate::window::microseconds();
                 self.mask_group(mask, &items[index + 1..end]);
+                if crate::trace::painting() {
+                    record_item(17, started);
+                }
                 index = end;
             } else if let DisplayItem::PushOpacity(opacity) = &items[index] {
                 // Fully transparent content draws nothing, as a closed menu
@@ -1973,16 +1981,16 @@ impl Painter {
                 };
                 // No visible content needs no backdrop, but scopes still
                 // execute to preserve the display list's state transitions.
+                let started = crate::window::microseconds();
                 self.push_opacity_in(*opacity, region);
+                if crate::trace::painting() {
+                    record_item(14, started);
+                }
             } else if !self.outside_area(&items[index]) {
                 if crate::trace::painting() {
                     let started = crate::window::microseconds();
                     self.item(&items[index]);
-                    let kind = item_kind(&items[index]);
-                    ITEM_TIMES[kind].fetch_add(
-                        crate::window::microseconds().saturating_sub(started),
-                        core::sync::atomic::Ordering::Relaxed,
-                    );
+                    record_item(item_kind(&items[index]), started);
                 } else {
                     self.item(&items[index]);
                 }
@@ -2869,14 +2877,36 @@ fn spaced_steps(dc: HDC, piece: &[u16], spacing: f32) -> Option<Vec<i32>> {
 }
 
 /// The kinds of display items the paint trace times, by name.
-const ITEM_KINDS: [&str; 10] = [
-    "fill", "gradient", "border", "text", "path", "canvas", "image", "shadow", "backdrop", "other",
+const ITEM_KINDS: [&str; 19] = [
+    "fill",
+    "gradient",
+    "border",
+    "text",
+    "path",
+    "canvas",
+    "image",
+    "shadow",
+    "backdrop",
+    "child",
+    "clip",
+    "clip-path",
+    "pop-clip",
+    "transform",
+    "opacity",
+    "pop-opacity",
+    "caret",
+    "group",
+    "other",
 ];
 
 /// Microseconds each kind of item took to draw since the paint trace last
 /// reported them.
-static ITEM_TIMES: [core::sync::atomic::AtomicU64; 10] =
-    [const { core::sync::atomic::AtomicU64::new(0) }; 10];
+static ITEM_TIMES: [core::sync::atomic::AtomicU64; 19] =
+    [const { core::sync::atomic::AtomicU64::new(0) }; 19];
+
+/// How many items of each kind were drawn since the last report.
+static ITEM_COUNTS: [core::sync::atomic::AtomicU64; 19] =
+    [const { core::sync::atomic::AtomicU64::new(0) }; 19];
 
 fn item_kind(item: &DisplayItem) -> usize {
     match item {
@@ -2889,27 +2919,47 @@ fn item_kind(item: &DisplayItem) -> usize {
         DisplayItem::Image { .. } => 6,
         DisplayItem::Shadow { .. } => 7,
         DisplayItem::Backdrop { .. } => 8,
-        _ => 9,
+        DisplayItem::Child(_) => 9,
+        DisplayItem::PushClip { .. } => 10,
+        DisplayItem::PushClipPath { .. } => 11,
+        DisplayItem::PopClip => 12,
+        DisplayItem::PushTransform(_) | DisplayItem::PopTransform => 13,
+        DisplayItem::PushOpacity(_) => 14,
+        DisplayItem::PopOpacity => 15,
+        DisplayItem::Caret { .. } => 16,
+        DisplayItem::PushFilter(_) | DisplayItem::PushMask(_) => 17,
+        _ => 18,
     }
+}
+
+/// Adds an item's drawing time to the paint trace's report.
+fn record_item(kind: usize, started: u64) {
+    ITEM_TIMES[kind].fetch_add(
+        crate::window::microseconds().saturating_sub(started),
+        core::sync::atomic::Ordering::Relaxed,
+    );
+    ITEM_COUNTS[kind].fetch_add(1, core::sync::atomic::Ordering::Relaxed);
 }
 
 /// The paint trace's report of what each kind of item took to draw since
 /// the last report, slowest first, and the counts reset.
 pub(crate) fn item_times() -> alloc::string::String {
-    let mut times: alloc::vec::Vec<(f64, &str)> = ITEM_TIMES
+    let mut times: alloc::vec::Vec<(f64, &str, u64)> = ITEM_TIMES
         .iter()
         .zip(ITEM_KINDS)
-        .map(|(time, kind)| {
+        .zip(&ITEM_COUNTS)
+        .map(|((time, kind), count)| {
             (
                 time.swap(0, core::sync::atomic::Ordering::Relaxed) as f64 / 1000.0,
                 kind,
+                count.swap(0, core::sync::atomic::Ordering::Relaxed),
             )
         })
-        .filter(|(time, _)| *time >= 0.1)
+        .filter(|(time, ..)| *time >= 0.1)
         .collect();
     times.sort_by(|a, b| b.0.total_cmp(&a.0));
     times
         .iter()
-        .map(|(time, kind)| alloc::format!(", {kind} {time:.1} ms"))
+        .map(|(time, kind, count)| alloc::format!(", {kind} {time:.1} ms/{count}"))
         .collect()
 }
