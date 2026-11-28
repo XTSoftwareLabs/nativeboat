@@ -235,6 +235,8 @@ pub fn longhands_of(name: &str) -> Option<Vec<PropertyId>> {
             P::FontFamily,
         ],
         "text-decoration" => &[P::TextDecorationLine, P::TextDecorationColor],
+        "white-space" => &[P::WhiteSpaceCollapse, P::TextWrapMode],
+        "text-wrap" => &[P::TextWrapMode, P::TextWrapStyle],
         "list-style" => &[P::ListStyleType, P::ListStylePosition],
         "grid-column" => &[P::GridColumnStart, P::GridColumnEnd],
         "grid-row" => &[P::GridRowStart, P::GridRowEnd],
@@ -313,6 +315,24 @@ fn border_parts(values: &[ComponentValue]) -> Option<[Vec<ComponentValue>; 3]> {
         width.unwrap_or_else(|| text("medium")),
         style.unwrap_or_else(|| text("none")),
         color.unwrap_or_else(|| text("currentcolor")),
+    ])
+}
+
+/// `a || b`: one value for each of two longhands, in either order, with
+/// `initial` for one left out.
+fn either(parts: &[ComponentValue], ids: [PropertyId; 2], initial: [&str; 2]) -> Option<Longhands> {
+    let mut values: [Option<Vec<ComponentValue>>; 2] = [None, None];
+    if parts.is_empty() {
+        return None;
+    }
+    for part in parts {
+        let slot = (0..2).find(|slot| values[*slot].is_none() && valid(ids[*slot], part))?;
+        values[slot] = Some(one(part));
+    }
+    let [first, second] = values;
+    Some(vec![
+        (ids[0], first.unwrap_or_else(|| text(initial[0]))),
+        (ids[1], second.unwrap_or_else(|| text(initial[1]))),
     ])
 }
 
@@ -404,6 +424,29 @@ pub fn expand(name: &str, values: &[ComponentValue]) -> Option<Longhands> {
         "transition" => transition(values),
         "animation" => animation(values),
         "flex" => flex(&parts),
+        // A keyword that sets both longhands, or either of them or both in
+        // any order, the other taking its initial value.
+        "white-space" => {
+            if let [value] = parts.as_slice()
+                && let Some(keyword) = value.ident()
+                && let Some(both) = crate::types::WhiteSpace::from_keyword(&keyword)
+            {
+                return Some(vec![
+                    (P::WhiteSpaceCollapse, text(both.collapse.keyword())),
+                    (P::TextWrapMode, text(both.wrap.keyword())),
+                ]);
+            }
+            either(
+                &parts,
+                [P::WhiteSpaceCollapse, P::TextWrapMode],
+                ["collapse", "wrap"],
+            )
+        }
+        "text-wrap" => either(
+            &parts,
+            [P::TextWrapMode, P::TextWrapStyle],
+            ["wrap", "auto"],
+        ),
         "flex-flow" => {
             let mut direction = text("row");
             let mut wrap = text("nowrap");

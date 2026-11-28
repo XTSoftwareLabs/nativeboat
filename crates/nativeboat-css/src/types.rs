@@ -423,34 +423,114 @@ keywords! {
 }
 
 keywords! {
-    /// The `white-space` property.
-    WhiteSpace default Normal {
-        Normal => "normal",
-        NoWrap => "nowrap",
-        Pre => "pre",
-        PreWrap => "pre-wrap",
-        PreLine => "pre-line",
+    /// The `white-space-collapse` property.
+    WhiteSpaceCollapse default Collapse {
+        Collapse => "collapse",
+        Preserve => "preserve",
+        PreserveBreaks => "preserve-breaks",
         BreakSpaces => "break-spaces",
     }
 }
 
+keywords! {
+    /// The `text-wrap-mode` property.
+    TextWrapMode default Wrap {
+        Wrap => "wrap",
+        NoWrap => "nowrap",
+    }
+}
+
+keywords! {
+    /// The `text-wrap-style` property. Lines break where they fill up for
+    /// every style; `balance` and `pretty` only choose among those breaks
+    /// in browsers.
+    TextWrapStyle default Auto {
+        Auto => "auto",
+        Balance => "balance",
+        Pretty => "pretty",
+        Stable => "stable",
+    }
+}
+
+/// How text handles white space and wrapping: the longhands the
+/// `white-space` shorthand sets.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+pub struct WhiteSpace {
+    /// `white-space-collapse`.
+    pub collapse: WhiteSpaceCollapse,
+    /// `text-wrap-mode`.
+    pub wrap: TextWrapMode,
+}
+
+#[allow(non_upper_case_globals)]
 impl WhiteSpace {
+    /// `normal`.
+    pub const Normal: WhiteSpace =
+        WhiteSpace::new(WhiteSpaceCollapse::Collapse, TextWrapMode::Wrap);
+    /// `nowrap`.
+    pub const NoWrap: WhiteSpace =
+        WhiteSpace::new(WhiteSpaceCollapse::Collapse, TextWrapMode::NoWrap);
+    /// `pre`.
+    pub const Pre: WhiteSpace = WhiteSpace::new(WhiteSpaceCollapse::Preserve, TextWrapMode::NoWrap);
+    /// `pre-wrap`.
+    pub const PreWrap: WhiteSpace =
+        WhiteSpace::new(WhiteSpaceCollapse::Preserve, TextWrapMode::Wrap);
+    /// `pre-line`.
+    pub const PreLine: WhiteSpace =
+        WhiteSpace::new(WhiteSpaceCollapse::PreserveBreaks, TextWrapMode::Wrap);
+    /// `break-spaces`.
+    pub const BreakSpaces: WhiteSpace =
+        WhiteSpace::new(WhiteSpaceCollapse::BreakSpaces, TextWrapMode::Wrap);
+    /// The keywords of the shorthand, by the longhands they set.
+    pub const KEYWORDS: [(&'static str, WhiteSpace); 6] = [
+        ("normal", WhiteSpace::Normal),
+        ("nowrap", WhiteSpace::NoWrap),
+        ("pre", WhiteSpace::Pre),
+        ("pre-wrap", WhiteSpace::PreWrap),
+        ("pre-line", WhiteSpace::PreLine),
+        ("break-spaces", WhiteSpace::BreakSpaces),
+    ];
+
+    /// The value of both longhands.
+    pub const fn new(collapse: WhiteSpaceCollapse, wrap: TextWrapMode) -> WhiteSpace {
+        WhiteSpace { collapse, wrap }
+    }
+
+    /// The longhands a `white-space` keyword sets.
+    pub fn from_keyword(keyword: &str) -> Option<WhiteSpace> {
+        WhiteSpace::KEYWORDS
+            .iter()
+            .find(|(name, _)| *name == keyword)
+            .map(|(_, value)| *value)
+    }
+
     /// Whether runs of spaces are collapsed.
     pub fn collapses_spaces(self) -> bool {
         matches!(
-            self,
-            WhiteSpace::Normal | WhiteSpace::NoWrap | WhiteSpace::PreLine
+            self.collapse,
+            WhiteSpaceCollapse::Collapse | WhiteSpaceCollapse::PreserveBreaks
         )
     }
 
     /// Whether newlines are kept.
     pub fn keeps_newlines(self) -> bool {
-        !matches!(self, WhiteSpace::Normal | WhiteSpace::NoWrap)
+        self.collapse != WhiteSpaceCollapse::Collapse
     }
 
     /// Whether lines may wrap.
     pub fn wraps(self) -> bool {
-        !matches!(self, WhiteSpace::NoWrap | WhiteSpace::Pre)
+        self.wrap == TextWrapMode::Wrap
+    }
+}
+
+impl ToCss for WhiteSpace {
+    /// The `white-space` shorthand: its keyword, or both longhands when no
+    /// keyword sets them.
+    fn to_css(&self) -> String {
+        match WhiteSpace::KEYWORDS.iter().find(|(_, value)| value == self) {
+            Some((name, _)) => (*name).to_owned(),
+            None => format!("{} {}", self.collapse.keyword(), self.wrap.keyword()),
+        }
     }
 }
 
