@@ -424,6 +424,7 @@ const WEB_CONTENTS: &[&str] = &[
     "postMessage",
     "isDestroyed",
     "getUserAgent",
+    "getURL",
     "getZoomFactor",
     "setZoomFactor",
     "getZoomLevel",
@@ -491,7 +492,6 @@ const INERT_WEB_CONTENTS: &[(&str, &str)] = &[
     ("setVisualZoomLevelLimits", "pages are not pinch-zoomed"),
     ("setAudioMuted", "does not mute the page"),
     ("isLoading", "always false"),
-    ("getURL", "always an empty string"),
     (
         "setUserAgent",
         "getUserAgent reports it; pages keep the native navigator.userAgent",
