@@ -529,7 +529,9 @@ fn decoration_and_lists() {
         expanded("text-decoration", "underline dotted red").unwrap(),
         pairs(&[
             ("text-decoration-line", "underline"),
-            ("text-decoration-color", "red")
+            ("text-decoration-style", "dotted"),
+            ("text-decoration-color", "red"),
+            ("text-decoration-thickness", "auto")
         ])
     );
     assert_eq!(

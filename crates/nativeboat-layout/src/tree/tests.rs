@@ -460,10 +460,10 @@ fn decorations_reach_block_descendants_in_their_own_color_and_style() {
          <p style='text-decoration:overline 3px'>d</p><p style='text-underline-position:under;text-decoration:underline'>e</p>",
         "p { margin: 0 }",
     );
-    let texts: Vec<&str> = result.runs.iter().map(|run| run.text.as_str()).collect();
-    assert_eq!(texts, vec!["a", "b", "c", "d", "e"]);
-    let drawn = |index: usize| -> Vec<(Line, Color, Style, Option<f32>, bool)> {
-        result.runs[index]
+    // Runs by their text: an inline block's text comes after its line's.
+    let run = |text: &str| result.runs.iter().find(|run| run.text == text).unwrap();
+    let drawn = |text: &str| -> Vec<(Line, Color, Style, Option<f32>, bool)> {
+        run(text)
             .decorations
             .iter()
             .map(|decoration| {
@@ -485,20 +485,20 @@ fn decorations_reach_block_descendants_in_their_own_color_and_style() {
         false,
     );
     // A block inside the decorating box draws its decoration.
-    assert!(!result.runs[0].underline);
-    assert_eq!(drawn(0), vec![wavy]);
+    assert!(!run("a").underline);
+    assert_eq!(drawn("a"), vec![wavy]);
     // An inline block does not.
-    assert!(!result.runs[1].underline && drawn(1).is_empty());
+    assert!(!run("b").underline && drawn("b").is_empty());
     // Text in its decoration color has the font draw its own underline.
-    assert!(result.runs[2].underline);
-    assert_eq!(drawn(2), vec![wavy]);
+    assert!(run("c").underline);
+    assert_eq!(drawn("c"), vec![wavy]);
     assert_eq!(
-        drawn(3),
+        drawn("d"),
         vec![(Line::Overline, Color::BLACK, Style::Solid, Some(3.0), false)]
     );
-    assert!(!result.runs[4].underline);
+    assert!(!run("e").underline);
     assert_eq!(
-        drawn(4),
+        drawn("e"),
         vec![(Line::Underline, Color::BLACK, Style::Solid, None, true)]
     );
 }

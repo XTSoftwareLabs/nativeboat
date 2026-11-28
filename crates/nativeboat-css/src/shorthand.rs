@@ -478,7 +478,7 @@ pub fn expand(name: &str, values: &[ComponentValue]) -> Option<Longhands> {
             for value in &parts {
                 if value.is_ident("none") && line.is_empty() && !none {
                     none = true;
-                } else if !none && valid(P::TextDecorationLine, value) {
+                } else if !none && !value.is_ident("none") && valid(P::TextDecorationLine, value) {
                     line.push(value.clone());
                     line.push(ComponentValue::Token(Token::Whitespace));
                 } else if style.is_none() && valid(P::TextDecorationStyle, value) {
