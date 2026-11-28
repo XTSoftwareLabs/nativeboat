@@ -664,6 +664,11 @@ fn language_features() {
 fn members_of_window_contents() {
     // What works is part of the window.
     assert_eq!(web_contents_member("send"), electron("BrowserWindow"));
+    assert_eq!(
+        web_contents_member("getUserAgent"),
+        electron("BrowserWindow")
+    );
+    assert_eq!(web_contents_member("setUserAgent").support, Partial);
     assert_eq!(web_contents_member("on"), electron("BrowserWindow"));
     assert_eq!(
         web_contents_member("postMessage"),
