@@ -1734,3 +1734,11 @@ fn a_realm_has_one_electron_module_and_ipc_registry() {
     let registry = realm.electron_ipc_registry().unwrap();
     assert!(registry.borrow_mut().take_handler("probe:early").is_some());
 }
+
+#[test]
+fn loaded_files_are_reported_as_file_urls() {
+    assert_eq!(
+        file_url(r"C:\My App\pages\index#1.html"),
+        "file:///C:/My%20App/pages/index%231.html"
+    );
+}

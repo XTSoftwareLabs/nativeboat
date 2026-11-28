@@ -1896,7 +1896,10 @@ fn install_window_methods(
         });
         instance.define(Key::name(name), Property::data(Value::Object(method)));
     }
+    // The URL the window last loaded, which `webContents.getURL` reports.
+    let loaded: alloc::rc::Rc<core::cell::RefCell<String>> = alloc::rc::Rc::default();
     for name in ["loadFile", "loadURL"] {
+        let loaded = loaded.clone();
         let method = realm.function(name, 1, false, move |realm, _, args| {
             let Some(Value::String(target)) = args.first() else {
                 return Err(realm.throw(
@@ -1912,6 +1915,11 @@ fn install_window_methods(
                 };
                 target = format!("{}\\{}", folder.to_rust_lossy(), target.replace('/', "\\"));
             }
+            *loaded.borrow_mut() = if name == "loadFile" {
+                file_url(&target)
+            } else {
+                target.clone()
+            };
             realm.register_electron_window_load(window.raw(), target);
             let (promise, resolve, _) = crate::promise_builtin::capability(realm);
             // As in Electron, the promise settles once the page has loaded.
@@ -1953,6 +1961,10 @@ fn install_window_methods(
             contents.define(Key::name(name), Property::data(value));
         }
     }
+    let url = realm.function("getURL", 0, false, move |_, _, _| {
+        Ok(Value::str(&loaded.borrow()))
+    });
+    contents.define(Key::name("getURL"), Property::data(Value::Object(url)));
     instance.define(
         Key::name("webContents"),
         Property::data(Value::Object(contents.clone())),
@@ -2021,3 +2033,21 @@ pub fn chrome_major(electron: Option<&str>) -> u32 {
 #[cfg(test)]
 #[path = "electron_builtin/tests.rs"]
 mod tests;
+
+/// The `file:` URL of an absolute Windows path, as Electron reports a
+/// loaded file's: forward slashes, with spaces and the characters URLs
+/// reserve escaped.
+pub(crate) fn file_url(path: &str) -> String {
+    let mut url = String::from("file:///");
+    for character in path.trim_start_matches(['\\', '/']).chars() {
+        match character {
+            '\\' => url.push('/'),
+            ' ' => url.push_str("%20"),
+            '#' => url.push_str("%23"),
+            '%' => url.push_str("%25"),
+            '?' => url.push_str("%3F"),
+            other => url.push(other),
+        }
+    }
+    url
+}
