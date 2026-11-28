@@ -58,6 +58,16 @@ fn inline_styles() {
         "padding-top: 1px; padding-right: 2px; padding-bottom: 1px; padding-left: 2px",
     );
     assert_eq!(longhands.get("padding"), "1px 2px");
+    let wrapping = InlineStyle::parse("white-space: pre; text-wrap-mode: wrap");
+    assert_eq!(wrapping.get("white-space-collapse"), "preserve");
+    assert_eq!(wrapping.get("white-space"), "pre-wrap");
+    let wrapping =
+        InlineStyle::parse("white-space-collapse: preserve-breaks; text-wrap-mode: nowrap");
+    assert_eq!(wrapping.get("white-space"), "preserve-breaks nowrap");
+    let wrapping = InlineStyle::parse("text-wrap-mode: nowrap; text-wrap-style: auto");
+    assert_eq!(wrapping.get("text-wrap"), "nowrap");
+    let wrapping = InlineStyle::parse("text-wrap-mode: wrap; text-wrap-style: balance");
+    assert_eq!(wrapping.get("text-wrap"), "balance");
     assert!(InlineStyle::default().is_empty());
     use nativeboat_css::values::parse_component_values;
     assert_eq!(
