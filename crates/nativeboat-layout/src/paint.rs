@@ -792,10 +792,15 @@ impl Painter<'_> {
             return;
         };
         let style = &layer.style;
+        // Masks and clip paths, as progress badges mask a box to an icon,
+        // apply in the stacking context the box makes, as the element's do.
         if style.position != PositionKind::Static
             || style.has_transform()
             || style.opacity < 1.0
             || !style.filter.0.is_empty()
+            || !style.backdrop_filter.0.is_empty()
+            || style.clip_path != ClipPath::None
+            || style.mask_image != BackgroundImage::None
         {
             layers.push(layer);
         } else {
