@@ -216,6 +216,8 @@ pub fn longhands_of(name: &str) -> Option<Vec<PropertyId>> {
             P::BackgroundRepeat,
             P::BackgroundPosition,
             P::BackgroundSize,
+            P::BackgroundOrigin,
+            P::BackgroundClip,
         ],
         "mask" => &[P::MaskImage, P::MaskRepeat, P::MaskPosition, P::MaskSize],
         "flex" => &[P::FlexGrow, P::FlexShrink, P::FlexBasis],
@@ -659,18 +661,16 @@ fn background(values: &[ComponentValue]) -> Option<Longhands> {
         .any(|name| value.is_ident(name))
     };
     let ignored = |value: &ComponentValue| {
-        [
-            "scroll",
-            "fixed",
-            "local",
-            "border-box",
-            "padding-box",
-            "content-box",
-            "text",
-        ]
-        .iter()
-        .any(|name| value.is_ident(name))
+        ["scroll", "fixed", "local"]
+            .iter()
+            .any(|name| value.is_ident(name))
     };
+    let is_box = |value: &ComponentValue| {
+        ["border-box", "padding-box", "content-box", "text"]
+            .iter()
+            .any(|name| value.is_ident(name))
+    };
+    let mut boxes: Vec<ComponentValue> = Vec::new();
     for (index, layer) in layers.iter().enumerate() {
         let parts = without_whitespace(layer);
         let first = index == 0;
@@ -698,6 +698,11 @@ fn background(values: &[ComponentValue]) -> Option<Longhands> {
                     repeat.push(value.clone());
                 }
                 sizing = false;
+            } else if is_box(value) {
+                if first {
+                    boxes.push(value.clone());
+                }
+                sizing = false;
             } else if ignored(value) {
                 sizing = false;
             } else if !sizing {
@@ -720,6 +725,15 @@ fn background(values: &[ComponentValue]) -> Option<Longhands> {
         spaced
     };
     let (repeat, position, size) = (spaced(repeat), spaced(position), spaced(size));
+    // One box is the origin and the clip, `text` only the clip; of two,
+    // the first is the origin.
+    let (origin, clip) = match boxes.as_slice() {
+        [] => (text("padding-box"), text("border-box")),
+        [both] if both.is_ident("text") => (text("padding-box"), one(both)),
+        [both] => (one(both), one(both)),
+        [origin, clip] if !origin.is_ident("text") => (one(origin), one(clip)),
+        _ => return None,
+    };
     let checked = |id: PropertyId, values: Vec<ComponentValue>, default: &str| {
         if values.is_empty() {
             Some(text(default))
@@ -739,6 +753,8 @@ fn background(values: &[ComponentValue]) -> Option<Longhands> {
             checked(P::BackgroundPosition, position, "0% 0%")?,
         ),
         (P::BackgroundSize, checked(P::BackgroundSize, size, "auto")?),
+        (P::BackgroundOrigin, origin),
+        (P::BackgroundClip, clip),
     ])
 }
 

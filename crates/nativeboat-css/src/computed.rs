@@ -267,6 +267,10 @@ pub struct ComputedStyle {
     pub background_image: BackgroundImage,
     /// How the background image repeats.
     pub background_repeat: BackgroundRepeat,
+    /// `background-clip`
+    pub background_clip: BackgroundBox,
+    /// `background-origin`
+    pub background_origin: BackgroundBox,
     /// The background image's size.
     pub background_size: BackgroundSize,
     /// Where the background image sits.
@@ -566,6 +570,8 @@ impl Default for ComputedStyle {
             color: Color::BLACK,
             background_color: Color::TRANSPARENT,
             background_image: BackgroundImage::None,
+            background_clip: BackgroundBox::BorderBox,
+            background_origin: BackgroundBox::PaddingBox,
             background_repeat: BackgroundRepeat {
                 x: Repeat::Repeat,
                 y: Repeat::Repeat,
@@ -766,6 +772,8 @@ longhands! {
     BackgroundImage => "background-image", false, parsers::background_image, background_image;
     BackgroundRepeat => "background-repeat", false, parsers::background_repeat, background_repeat;
     BackgroundSize => "background-size", false, parsers::background_size, background_size;
+    BackgroundClip => "background-clip", false, parsers::background_clip, background_clip;
+    BackgroundOrigin => "background-origin", false, parsers::background_origin, background_origin;
     BackgroundPosition => "background-position", false, parsers::background_position, background_position;
     MaskImage => "mask-image", false, parsers::background_image, mask_image;
     MaskRepeat => "mask-repeat", false, parsers::background_repeat, mask_repeat;

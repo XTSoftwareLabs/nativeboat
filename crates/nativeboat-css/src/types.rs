@@ -423,6 +423,17 @@ keywords! {
 }
 
 keywords! {
+    /// The box a background is clipped to (`background-clip`) or placed
+    /// in (`background-origin`, which takes no `text`).
+    BackgroundBox default BorderBox {
+        BorderBox => "border-box",
+        PaddingBox => "padding-box",
+        ContentBox => "content-box",
+        Text => "text",
+    }
+}
+
+keywords! {
     /// The `white-space-collapse` property.
     WhiteSpaceCollapse default Collapse {
         Collapse => "collapse",

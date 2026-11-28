@@ -835,6 +835,32 @@ fn side_angle(words: &[ComponentValue]) -> Option<f32> {
     Some(crate::math::rem_euclid(angle, 360.0))
 }
 
+/// `background-clip`: the first layer's box, every layer's valid.
+pub fn background_clip(values: &[ComponentValue], _: &Context) -> Option<BackgroundBox> {
+    let mut first = None;
+    for layer in split_commas(values) {
+        let [value] = layer.as_slice() else {
+            return None;
+        };
+        let found = BackgroundBox::from_keyword(&value.ident()?)?;
+        if first.is_none() {
+            first = Some(found);
+        }
+    }
+    first
+}
+
+/// `background-origin`: as `background-clip`, but not `text`.
+pub fn background_origin(values: &[ComponentValue], context: &Context) -> Option<BackgroundBox> {
+    let has_text = split_commas(values)
+        .iter()
+        .any(|layer| layer.iter().any(|value| value.is_ident("text")));
+    if has_text {
+        return None;
+    }
+    background_clip(values, context)
+}
+
 /// `background-repeat`: the first layer.
 pub fn background_repeat(values: &[ComponentValue], _: &Context) -> Option<BackgroundRepeat> {
     let layers = split_commas(values);
