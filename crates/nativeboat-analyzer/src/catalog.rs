@@ -423,6 +423,7 @@ const WEB_CONTENTS: &[&str] = &[
     // Message ports move to the renderer, as `ipcRenderer` event ports.
     "postMessage",
     "isDestroyed",
+    "getUserAgent",
     "getZoomFactor",
     "setZoomFactor",
     "getZoomLevel",
@@ -491,6 +492,10 @@ const INERT_WEB_CONTENTS: &[(&str, &str)] = &[
     ("setAudioMuted", "does not mute the page"),
     ("isLoading", "always false"),
     ("getURL", "always an empty string"),
+    (
+        "setUserAgent",
+        "getUserAgent reports it; pages keep the native navigator.userAgent",
+    ),
     (
         "findInPage",
         "returns a request id; pages are not searched, so no found-in-page event follows",
