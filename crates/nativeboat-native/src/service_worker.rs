@@ -69,6 +69,11 @@ pub(crate) fn register(page: &mut Realm, script: &Value, scope: &Value) -> Resul
     }
     let id = REGISTRY.next.get() + 1;
     REGISTRY.next.set(id);
+    if crate::frame::traced() {
+        crate::platform::write_stderr(&format!(
+            "nativeboat: service worker {script} registered for {scope}\n"
+        ));
+    }
     // Registered before its script runs, which reports the states it
     // reaches.
     crate::worker::start_service(page, &script.clone(), &scope.clone(), |realm| {
@@ -114,6 +119,12 @@ pub(crate) fn set_state(worker: &Realm, state: &str) {
         .iter_mut()
         .find(|registration| registration.realm == address)
     {
+        if crate::frame::traced() {
+            crate::platform::write_stderr(&format!(
+                "nativeboat: service worker for {} is {state}\n",
+                registration.scope
+            ));
+        }
         registration.state = String::from(state);
     }
 }

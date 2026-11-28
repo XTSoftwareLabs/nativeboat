@@ -61,7 +61,7 @@ impl Realm {
 
 /// Whether `NATIVEBOAT_TRACE_FRAMES` asks for each frame's URL and the
 /// compiled document it shows to be reported on standard error.
-fn traced() -> bool {
+pub(crate) fn traced() -> bool {
     crate::platform::environment_value(&crate::JsStr::from("NATIVEBOAT_TRACE_FRAMES")).is_some()
 }
 
