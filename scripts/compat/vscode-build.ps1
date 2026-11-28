@@ -45,6 +45,13 @@ if ($process.WaitForExit($Minutes * 60 * 1000)) {
 }
 Get-Content "$Log.err", "$Log.out" | Set-Content $Log
 Remove-Item "$Log.err", "$Log.out"
+if ($state -eq 'built') {
+    # VS Code's own builds leave its test extensions out; they are not
+    # compiled here either (vscode.json), so they would only fail to load.
+    foreach ($name in 'vscode-api-tests', 'vscode-colorize-tests', 'vscode-colorize-perf-tests', 'vscode-test-resolver') {
+        Remove-Item (Join-Path $Out "resources\app\extensions\$name") -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
 $lines = Get-Content $Log
 $compiled = @($lines | Select-String -SimpleMatch '(compiled)').Count
 $hits = @($lines | Select-String -SimpleMatch '(cache hit)').Count

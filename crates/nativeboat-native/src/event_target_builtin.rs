@@ -165,8 +165,62 @@ fn install_event_target(realm: &mut Realm, keys: &EventKeys) {
     realm.method(&prototype, "dispatchEvent", 1, move |realm, this, args| {
         dispatch_event(realm, &this, args, &dispatch_keys)
     });
+    // Node's `events` helpers know event targets by this mark on their
+    // class, which subclasses such as `AbortSignal` inherit.
+    let mark = crate::symbol_builtin::intern(realm, crate::JsStr::from(NODE_EVENT_TARGET));
+    constructor.define(Key::Symbol(mark), Property::data(Value::Boolean(true)));
+    // And read a target's listeners through this key, as Node's own event
+    // targets keep them: `get(type)` gives the head of a list of
+    // `{ listener, next }`.
+    let events = crate::symbol_builtin::intern(realm, crate::JsStr::from(NODE_EVENTS));
+    let events_keys = keys.clone();
+    let view = realm.function("get events", 0, false, move |realm, this, _| {
+        let Some(target) = this.as_object().cloned() else {
+            return Ok(Value::Undefined);
+        };
+        let keys = events_keys.clone();
+        let get = realm.function("get", 1, false, move |realm, _, args| {
+            let event_type = ops::to_string(realm, &arg(args, 0))?.to_rust_lossy();
+            let head = realm.object();
+            let mut last = head.clone();
+            for entry in entries(&target, &event_type, &keys) {
+                let node = realm.object();
+                node.define(
+                    Key::name("listener"),
+                    Property::data(entry_field(&entry, "callback")),
+                );
+                last.define(
+                    Key::name("next"),
+                    Property::data(Value::Object(node.clone())),
+                );
+                last = node;
+            }
+            Ok(Value::Object(head))
+        });
+        let map = realm.object();
+        map.define(Key::name("get"), Property::hidden(Value::Object(get)));
+        Ok(Value::Object(map))
+    });
+    prototype.define(
+        Key::Symbol(events),
+        Property {
+            slot: Slot::Accessor {
+                get: Some(view),
+                set: None,
+            },
+            enumerable: false,
+            configurable: true,
+        },
+    );
     realm.set_global("EventTarget", Value::Object(constructor));
 }
+
+/// The registered symbol Node marks event target classes with.
+const NODE_EVENT_TARGET: &str = "nodejs.event_target";
+
+/// The registered symbol under which the bundled `events` module reads a
+/// native event target's listeners.
+const NODE_EVENTS: &str = "nativeboat.event_target.events";
 
 /// `GetPrototypeFromConstructor`: the prototype of the class a script
 /// extends `Event` or `EventTarget` with, else the built-in one.

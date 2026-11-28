@@ -329,8 +329,10 @@ pub struct ComputedStyle {
     pub text_decoration_color: OptionalColor,
     /// `text-transform`
     pub text_transform: TextTransform,
-    /// `white-space`
+    /// `white-space-collapse` and `text-wrap-mode`
     pub white_space: WhiteSpace,
+    /// `text-wrap-style`
+    pub text_wrap_style: TextWrapStyle,
     /// `text-overflow`
     pub text_overflow: TextOverflow,
     /// How a `-webkit-box` lays out its children.
@@ -613,6 +615,7 @@ impl Default for ComputedStyle {
             text_decoration_color: OptionalColor(None),
             text_transform: TextTransform::None,
             white_space: WhiteSpace::Normal,
+            text_wrap_style: TextWrapStyle::Auto,
             text_overflow: TextOverflow::Clip,
             box_orient: BoxOrient::Horizontal,
             line_clamp: LineClamp(None),
@@ -800,7 +803,9 @@ longhands! {
     TextDecorationColor => "text-decoration-color", false, parsers::optional_color, text_decoration_color;
     TextUnderlineOffset => "text-underline-offset", true, parsers::underline_offset, text_underline_offset;
     TextTransform => "text-transform", true, parsers::keyword::<TextTransform>, text_transform;
-    WhiteSpace => "white-space", true, parsers::keyword::<WhiteSpace>, white_space;
+    WhiteSpaceCollapse => "white-space-collapse", true, parsers::keyword::<WhiteSpaceCollapse>, white_space.collapse;
+    TextWrapMode => "text-wrap-mode", true, parsers::keyword::<TextWrapMode>, white_space.wrap;
+    TextWrapStyle => "text-wrap-style", true, parsers::keyword::<TextWrapStyle>, text_wrap_style;
     TextOverflow => "text-overflow", false, parsers::keyword::<TextOverflow>, text_overflow;
     WebkitBoxOrient => "-webkit-box-orient", false, parsers::keyword::<BoxOrient>, box_orient;
     WebkitLineClamp => "-webkit-line-clamp", false, parsers::line_clamp, line_clamp;
@@ -1298,6 +1303,13 @@ impl ComputedStyle {
                 self.flex_wrap.to_css()
             ),
             "text-decoration" => self.text_decoration_line.to_css(),
+            "white-space" => self.white_space.to_css(),
+            // Chromium leaves out what is initial.
+            "text-wrap" => match (self.white_space.wrap, self.text_wrap_style) {
+                (mode, TextWrapStyle::Auto) => mode.to_css(),
+                (TextWrapMode::Wrap, style) => style.to_css(),
+                (mode, style) => format!("{} {}", mode.to_css(), style.to_css()),
+            },
             "margin-block" | "margin-inline" | "padding-block" | "padding-inline"
             | "inset-block" | "inset-inline" => {
                 let start = self.resolved_value(&format!("{name}-start"), used)?;

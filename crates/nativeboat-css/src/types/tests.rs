@@ -68,7 +68,9 @@ fn keyword_enums_round_trip() {
         FontStyle,
         TextAlign,
         TextTransform,
-        WhiteSpace,
+        WhiteSpaceCollapse,
+        TextWrapMode,
+        TextWrapStyle,
         TextOverflow,
         WordBreak,
         OverflowWrap,
@@ -155,6 +157,16 @@ fn keyword_helpers() {
     assert!(!WhiteSpace::NoWrap.keeps_newlines());
     assert!(WhiteSpace::Normal.wraps());
     assert!(!WhiteSpace::Pre.wraps());
+    assert!(!WhiteSpace::new(WhiteSpaceCollapse::PreserveBreaks, TextWrapMode::NoWrap).wraps());
+    for (keyword, value) in WhiteSpace::KEYWORDS {
+        assert_eq!(WhiteSpace::from_keyword(keyword), Some(value));
+        assert_eq!(value.to_css(), keyword);
+    }
+    assert_eq!(WhiteSpace::from_keyword("wrap"), None);
+    assert_eq!(
+        WhiteSpace::new(WhiteSpaceCollapse::PreserveBreaks, TextWrapMode::NoWrap).to_css(),
+        "preserve-breaks nowrap"
+    );
 }
 
 #[test]

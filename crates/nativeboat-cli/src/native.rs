@@ -1097,7 +1097,7 @@ fn graph_entries_with_stylesheets(
                 let module =
                     std::fs::read_to_string(&found).is_ok_and(|text| module_source(&found, &text));
                 if !module {
-                    crate::classic_script::mark_classic(&found);
+                    return Some(crate::classic_script::script(&found));
                 }
                 return Some(found);
             }
@@ -1110,7 +1110,7 @@ fn graph_entries_with_stylesheets(
                 let module =
                     std::fs::read_to_string(&found).is_ok_and(|text| module_source(&found, &text));
                 if !module {
-                    crate::classic_script::mark_classic(&found);
+                    return Some(crate::classic_script::script(&found));
                 }
                 return Some(found);
             }

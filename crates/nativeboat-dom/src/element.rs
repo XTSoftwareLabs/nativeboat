@@ -70,6 +70,21 @@ fn serialize_shorthand(name: &str, values: Vec<String>) -> String {
             .collect::<Vec<_>>()
             .join(" ");
     }
+    use nativeboat_css::types::{TextWrapMode, WhiteSpace, WhiteSpaceCollapse};
+    match (name, values.as_slice()) {
+        ("white-space", [collapse, wrap]) => {
+            if let (Some(collapse), Some(wrap)) = (
+                WhiteSpaceCollapse::from_keyword(collapse),
+                TextWrapMode::from_keyword(wrap),
+            ) {
+                return nativeboat_css::types::ToCss::to_css(&WhiteSpace::new(collapse, wrap));
+            }
+        }
+        // What is initial is left out.
+        ("text-wrap", [mode, style]) if style == "auto" => return mode.clone(),
+        ("text-wrap", [mode, style]) if mode == "wrap" => return style.clone(),
+        _ => {}
+    }
     if values.iter().all(|value| *value == values[0]) {
         return values[0].clone();
     }

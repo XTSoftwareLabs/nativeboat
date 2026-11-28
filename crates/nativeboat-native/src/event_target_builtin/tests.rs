@@ -502,3 +502,44 @@ fn subclasses_construct_events_and_targets_with_their_own_prototypes() {
         expected.as_object().cloned()
     );
 }
+
+#[test]
+fn node_knows_event_targets_and_reads_their_listeners() {
+    let mut realm = Realm::new();
+    let target_constructor = global(&mut realm, "EventTarget");
+    let signal_constructor = global(&mut realm, "AbortSignal");
+    let mark = Key::Symbol(crate::symbol_builtin::intern(
+        &realm,
+        crate::JsStr::from("nodejs.event_target"),
+    ));
+    for constructor in [&target_constructor, &signal_constructor] {
+        assert!(matches!(
+            ops::get(&mut realm, constructor, &mark).unwrap(),
+            Value::Boolean(true)
+        ));
+    }
+    let target = construct(&mut realm, &target_constructor, &[]);
+    let listener = realm.function("listener", 1, false, |_, _, _| Ok(Value::Undefined));
+    call(
+        &mut realm,
+        &target,
+        "addEventListener",
+        &[Value::str("abort"), Value::Object(listener.clone())],
+    );
+    let events = Key::Symbol(crate::symbol_builtin::intern(
+        &realm,
+        crate::JsStr::from("nativeboat.event_target.events"),
+    ));
+    let view = ops::get(&mut realm, &target, &events).unwrap();
+    let head = call(&mut realm, &view, "get", &[Value::str("abort")]);
+    let first = ops::get(&mut realm, &head, &Key::name("next")).unwrap();
+    let found = ops::get(&mut realm, &first, &Key::name("listener")).unwrap();
+    assert!(matches!(found, Value::Object(object) if object == listener));
+    let rest = ops::get(&mut realm, &first, &Key::name("next")).unwrap();
+    assert!(matches!(rest, Value::Undefined));
+    let none = call(&mut realm, &view, "get", &[Value::str("other")]);
+    assert!(matches!(
+        ops::get(&mut realm, &none, &Key::name("next")).unwrap(),
+        Value::Undefined
+    ));
+}

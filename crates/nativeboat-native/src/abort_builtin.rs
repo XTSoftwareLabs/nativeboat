@@ -86,6 +86,8 @@ pub(crate) fn install(realm: &mut Realm) {
         Key::name("abort"),
         Property::hidden(Value::Object(abort_static)),
     );
+    // `AbortSignal` extends `EventTarget`, statics included.
+    signal_constructor.set_prototype(target_constructor.as_object().cloned());
     realm.set_global("AbortSignal", Value::Object(signal_constructor.clone()));
 
     let controller_prototype = realm.object();

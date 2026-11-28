@@ -103,7 +103,9 @@ const SAMPLES: &[(&str, &str)] = &[
     ("text-decoration-color", "red"),
     ("text-underline-offset", "3px"),
     ("text-transform", "uppercase"),
-    ("white-space", "nowrap"),
+    ("white-space-collapse", "preserve-breaks"),
+    ("text-wrap-mode", "nowrap"),
+    ("text-wrap-style", "balance"),
     ("text-overflow", "ellipsis"),
     ("-webkit-box-orient", "vertical"),
     ("-webkit-line-clamp", "3"),
@@ -524,6 +526,8 @@ fn property_values() {
     assert_eq!(get("flex"), "0 1 auto");
     assert_eq!(get("flex-flow"), "row nowrap");
     assert_eq!(get("text-decoration"), "none");
+    assert_eq!(get("white-space"), "normal");
+    assert_eq!(get("text-wrap"), "wrap");
     assert_eq!(get("width"), "auto");
     // Logical properties report the physical sides they map to, as
     // Chromium's computed styles do.

@@ -253,6 +253,53 @@ fn shorthands_aliases_and_prefixes() {
 }
 
 #[test]
+fn white_space_and_text_wrap_share_the_wrap_mode() {
+    use crate::types::{TextWrapMode, TextWrapStyle, WhiteSpace, WhiteSpaceCollapse};
+    let white_space = |css: &str| {
+        let style = style_of(css, "text");
+        let get = |name: &str| style.property_value(name).unwrap();
+        (style.white_space, get("white-space"), get("text-wrap"))
+    };
+    assert_eq!(
+        white_space("#text { white-space: pre-wrap; text-wrap: nowrap }"),
+        (WhiteSpace::Pre, "pre".into(), "nowrap".into())
+    );
+    assert_eq!(
+        white_space("#text { text-wrap: nowrap; white-space: pre-line }"),
+        (WhiteSpace::PreLine, "pre-line".into(), "wrap".into())
+    );
+    // Either longhand inherits; `text-wrap: initial` restores wrapping.
+    assert_eq!(
+        white_space("#root { white-space: nowrap } #text { text-wrap: initial }"),
+        (WhiteSpace::Normal, "normal".into(), "wrap".into())
+    );
+    assert_eq!(
+        white_space(
+            "#root { white-space: nowrap } #text { white-space-collapse: preserve-breaks }"
+        ),
+        (
+            WhiteSpace::new(WhiteSpaceCollapse::PreserveBreaks, TextWrapMode::NoWrap),
+            "preserve-breaks nowrap".into(),
+            "nowrap".into()
+        )
+    );
+    assert_eq!(
+        white_space("#text { white-space: nowrap preserve }").0,
+        WhiteSpace::Pre
+    );
+    let style = style_of("#text { text-wrap: balance nowrap }", "text");
+    assert_eq!(style.text_wrap_style, TextWrapStyle::Balance);
+    assert_eq!(style.property_value("text-wrap").unwrap(), "nowrap balance");
+    let style = style_of("#text { text-wrap: pretty }", "text");
+    assert_eq!(style.property_value("text-wrap").unwrap(), "pretty");
+    for invalid in ["wrap wrap", "bogus", "nowrap pre"] {
+        let css =
+            format!("#text {{ white-space: pre; text-wrap: {invalid}; white-space: {invalid} }}");
+        assert_eq!(white_space(&css).0, WhiteSpace::Pre, "{invalid}");
+    }
+}
+
+#[test]
 fn css_wide_keywords() {
     let style = style_of(
         "#root { color: red; width: 5px; margin: 4px } \
