@@ -508,6 +508,10 @@ const INERT_WEB_CONTENTS: &[(&str, &str)] = &[
     ("beginFrameSubscription", "frames are not delivered"),
     ("endFrameSubscription", "frames are not delivered"),
     ("inspectElement", "developer tools are not available"),
+    (
+        "mainFrame",
+        "the page's frame: its url, process ids and send; it has no subframes and runs no scripts",
+    ),
 ];
 
 /// A member of a window's `webContents`, such as `win.webContents.send`.

@@ -381,3 +381,21 @@ fn keys_reach_before_input_listeners_which_may_keep_them_from_the_page() {
     assert!(realm.electron_before_input(5, &save));
     assert_eq!(realm.host_errors.len(), 1);
 }
+
+#[test]
+fn the_main_frame_sends_through_its_contents() {
+    let mut realm = Realm::new();
+    realm.node_library = Some(library);
+    let emitter = event_emitter(&mut realm).unwrap();
+    let contents = web_contents(&mut realm, emitter.as_ref(), Window::from_raw(9)).unwrap();
+    let target = Value::Object(contents);
+    let frame = ops::get(&mut realm, &target, &Key::name("mainFrame")).unwrap();
+    let top = ops::get(&mut realm, &frame, &Key::name("top")).unwrap();
+    assert!(crate::same_value(&top, &frame));
+    let url = ops::get(&mut realm, &frame, &Key::name("url")).unwrap();
+    assert!(matches!(url, Value::String(text) if text.to_rust_lossy().is_empty()));
+    let send = ops::get(&mut realm, &frame, &Key::name("send")).unwrap();
+    ops::call(&mut realm, &send, frame.clone(), &[Value::str("ping")]).unwrap();
+    assert_eq!(realm.electron_outgoing.len(), 1);
+    assert_eq!(realm.electron_outgoing[0].1, "ping");
+}
