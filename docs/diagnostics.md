@@ -23,6 +23,7 @@ read when the program starts.
 | `NATIVEBOAT_TRACE_INPUT` | Pointer, key and text input a page receives, its targets, and whether the page cancelled it; range rectangles scripts read, with the boxes around them. |
 | `NATIVEBOAT_TRACE_LAYOUT` | Time spent on style (with elements styled and matches and styles reused), layout (boxes built and reused) and scene building. |
 | `NATIVEBOAT_TRACE_PAINT` | Each painted area of each surface, the time rendering it and copying it to the window. |
+| `NATIVEBOAT_TRACE_FRAMES` | Each frame an `<iframe>` starts: its URL and the compiled document it shows, or that the build compiled none for it. |
 | `NATIVEBOAT_DUMP_PAGE=<file>` | The page's description, rewritten at most once a second when it changes: every element's box and main computed styles, then every surface (position, size, scrolled content size, scrollbars) and its display list. |
 | `NATIVEBOAT_DUMP_DOM=<file>` | The page's markup, for comparing a document with Chromium's. |
 

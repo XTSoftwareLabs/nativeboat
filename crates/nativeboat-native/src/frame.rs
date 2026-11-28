@@ -59,6 +59,12 @@ impl Realm {
     }
 }
 
+/// Whether `NATIVEBOAT_TRACE_FRAMES` asks for each frame's URL and the
+/// compiled document it shows to be reported on standard error.
+fn traced() -> bool {
+    crate::platform::environment_value(&crate::JsStr::from("NATIVEBOAT_TRACE_FRAMES")).is_some()
+}
+
 /// The compiled document a URL names: the one with a path its path ends
 /// with, ignoring case, query and fragment.
 fn document(documents: &[FrameDocument], url: &str) -> Option<FrameDocument> {
@@ -87,8 +93,14 @@ pub(crate) fn start(
         return Err(page.throw(ErrorKind::Type, "a frame's port must be a live channel end"));
     };
     let url = ops::to_string(page, url)?.to_rust_lossy();
-    let (Some(make_page), Some(document)) = (page.frame_page, document(page.frame_documents, &url))
-    else {
+    let found = document(page.frame_documents, &url);
+    if traced() {
+        let shown = found.map_or("no compiled document", |document| {
+            document.paths.first().copied().unwrap_or_default()
+        });
+        crate::platform::write_stderr(&format!("nativeboat: frame {url} shows {shown}\n"));
+    }
+    let (Some(make_page), Some(document)) = (page.frame_page, found) else {
         return Ok((0, Value::Undefined));
     };
     crate::realm_ports::move_out(page, &[port]);
