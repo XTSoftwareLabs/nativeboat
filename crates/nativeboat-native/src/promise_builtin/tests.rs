@@ -550,6 +550,12 @@ fn unhandled_rejections_are_reported_after_jobs() {
         message(&mut realm, Err(thrown)),
         "UnhandledPromiseRejection: This error originated either by throwing inside of an async function without a catch block, or by rejecting a promise which was not handled with .catch(). The promise rejected with the reason \"'text'\"."
     );
+    // An object with its own stack, as a DOMException, is the error itself.
+    let like = realm.object();
+    like.define(Key::name("stack"), Property::data(s("AbortError: gone")));
+    statics(&mut realm, "reject", &[Value::Object(like.clone())]).unwrap();
+    let thrown = realm.run_jobs().unwrap_err();
+    assert!(matches!(&thrown.0, Value::Object(object) if *object == like));
 }
 
 #[test]
