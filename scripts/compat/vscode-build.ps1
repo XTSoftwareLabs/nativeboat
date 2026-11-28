@@ -49,7 +49,7 @@ if ($state -eq 'built') {
     # VS Code's own builds leave its test extensions out; they are not
     # compiled here either (vscode.json), so they would only fail to load.
     foreach ($name in 'vscode-api-tests', 'vscode-colorize-tests', 'vscode-colorize-perf-tests', 'vscode-test-resolver') {
-        Remove-Item (Join-Path $Out "resourcespp\extensions\$name") -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item (Join-Path $Out "resources\app\extensions\$name") -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
 $lines = Get-Content $Log
