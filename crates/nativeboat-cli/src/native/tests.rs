@@ -7638,7 +7638,8 @@ setTimeout(() => console.log('timeout', out.join('|')), 10000).unref();
 
 /// A page compiles the package scripts its code names by package and file,
 /// and loads one, as a classic script, when it imports its URL; a URL no
-/// compiled script ends rejects with `ERR_MODULE_NOT_FOUND`.
+/// compiled script ends rejects with `ERR_MODULE_NOT_FOUND`. A file the page
+/// also imports stays a module there.
 #[test]
 fn pages_load_the_package_scripts_they_name() {
     let fixture = Fixture::new(&[
@@ -7664,11 +7665,22 @@ fn pages_load_the_package_scripts_they_name() {
         ),
         (
             "page.js",
-            "const load = (pkg, file) => import(['.', 'node_modules', pkg, file].join('/'));\n\
+            "import cjs from './node_modules/cjs-sample/lib.js';\n\
+             const before = globalThis.count;\n\
+             const load = (pkg, file) => import(['.', 'node_modules', pkg, file].join('/'));\n\
              load('umd-sample', 'dist/main.js')\n\
                .then(() => load('esm-sample', 'dist/index.js'))\n\
                .then((esm) => load('nothing-here', 'x.js').then(() => 'unexpected', (error) => `${esm.value} ${error.code}`))\n\
-               .then((code) => api.send('seen', `${globalThis.umdValue} ${code}`));",
+               .then((code) => load('cjs-sample', 'lib.js').then(() => code))\n\
+               .then((code) => api.send('seen', `${globalThis.umdValue} ${code} ${cjs.count} ${before} ${globalThis.count}`));",
+        ),
+        (
+            "node_modules/cjs-sample/package.json",
+            r#"{"name":"cjs-sample","version":"1.0.0"}"#,
+        ),
+        (
+            "node_modules/cjs-sample/lib.js",
+            "var count = 1; if (typeof module == 'object') module.exports = { count: count };",
         ),
         (
             "node_modules/umd-sample/package.json",
@@ -7695,7 +7707,7 @@ fn pages_load_the_package_scripts_they_name() {
     assert!(executed.status.success(), "{executed:?}");
     assert_eq!(
         String::from_utf8_lossy(&executed.stdout),
-        "seen 42 7 ERR_MODULE_NOT_FOUND\n"
+        "seen 42 7 ERR_MODULE_NOT_FOUND 1 undefined 1\n"
     );
 }
 

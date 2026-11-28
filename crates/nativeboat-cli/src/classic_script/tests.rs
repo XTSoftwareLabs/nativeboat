@@ -54,6 +54,19 @@ fn inline_and_classic_sources() {
 }
 
 #[test]
+fn files_run_as_scripts_are_modules_of_their_own() {
+    let folder = std::env::temp_dir().join("nativeboat-classic-script-test");
+    std::fs::create_dir_all(&folder).unwrap();
+    let file = folder.join("lib.min.js");
+    std::fs::write(&file, "var count = 1;").unwrap();
+    let script = script(&file);
+    assert!(script.ends_with(".lib.min.classic.js"));
+    assert_eq!(source(&script), Some("(globalThis.count = 1);".to_owned()));
+    // Modules importing the file get it as written.
+    assert_eq!(source(&key(&file)), None);
+}
+
+#[test]
 fn handler_attributes_compile_into_a_module() {
     let page = std::env::temp_dir()
         .join("nativeboat-handlers-test")
