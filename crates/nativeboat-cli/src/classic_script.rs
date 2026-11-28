@@ -16,6 +16,8 @@ thread_local! {
     static INLINE: RefCell<HashMap<PathBuf, String>> = RefCell::default();
     /// The entry paths of classic scripts.
     static CLASSIC: RefCell<HashSet<PathBuf>> = RefCell::default();
+    /// The files package and worker scripts run, by their virtual paths.
+    static FILES: RefCell<HashMap<PathBuf, PathBuf>> = RefCell::default();
 }
 
 fn key(path: &Path) -> PathBuf {
@@ -238,13 +240,30 @@ pub(crate) fn mark_classic(path: &Path) {
     CLASSIC.with_borrow_mut(|classic| classic.insert(key(path)));
 }
 
+/// The virtual path of a file a page or worker runs as a classic script.
+/// Modules may import the same file, and they must get it as written rather
+/// than with its top level made global, so the script is a module of its own.
+pub(crate) fn script(path: &Path) -> PathBuf {
+    let stem = path
+        .file_stem()
+        .map_or_else(|| "script".into(), |stem| stem.to_string_lossy());
+    let extension = path
+        .extension()
+        .map_or_else(|| "js".into(), |extension| extension.to_string_lossy());
+    let script = key(&path.with_file_name(format!(".{stem}.classic.{extension}")));
+    FILES.with_borrow_mut(|files| files.insert(script.clone(), path.to_owned()));
+    mark_classic(&script);
+    script
+}
+
 /// The source of a module the compiler asks for, when it is an inline or a
 /// classic script: the script with its top level made global.
 pub(crate) fn source(path: &Path) -> Option<String> {
     let classic = CLASSIC.with_borrow(|classic| classic.contains(path));
+    let file = FILES.with_borrow(|files| files.get(path).cloned());
     let text = match INLINE.with_borrow(|inline| inline.get(path).cloned()) {
         Some(text) => text,
-        None if classic => std::fs::read_to_string(path).ok()?,
+        None if classic => std::fs::read_to_string(file.as_deref().unwrap_or(path)).ok()?,
         None => return None,
     };
     Some(if classic { globalize(&text) } else { text })

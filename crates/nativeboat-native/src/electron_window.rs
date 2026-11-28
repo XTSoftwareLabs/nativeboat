@@ -567,6 +567,27 @@ pub(crate) fn web_contents(
         Ok(Value::Boolean(false))
     });
     define(realm, &contents, "getURL", 0, |_, _, _| Ok(Value::str("")));
+    // The user agent the application sets for the window, else the
+    // runtime's; pages keep their own `navigator.userAgent`.
+    let agent: Rc<RefCell<Option<Value>>> = Rc::default();
+    let read = agent.clone();
+    define(realm, &contents, "getUserAgent", 0, move |realm, _, _| {
+        Ok(read
+            .borrow()
+            .clone()
+            .unwrap_or_else(|| Value::str(&crate::electron_builtin::user_agent(realm))))
+    });
+    define(
+        realm,
+        &contents,
+        "setUserAgent",
+        1,
+        move |realm, _, args| {
+            let text = ops::to_string(realm, &arg(args, 0))?;
+            *agent.borrow_mut() = Some(Value::String(text));
+            Ok(Value::Undefined)
+        },
+    );
     // Pages run in the application's process.
     for name in ["getOSProcessId", "getProcessId"] {
         define(realm, &contents, name, 0, |_, _, _| {

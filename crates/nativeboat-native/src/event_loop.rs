@@ -415,12 +415,13 @@ impl Realm {
     }
 
     /// The error Node reports for an unhandled rejection: the reason itself
-    /// when it is an error object, otherwise an explanation naming it.
+    /// when it is like an error, an object with its own `stack` as a
+    /// `DOMException` has, otherwise an explanation naming it.
     fn unhandled_rejection(&mut self, reason: Value) -> Thrown {
-        if reason
-            .as_object()
-            .is_some_and(|object| matches!(object.data().kind, Kind::Error))
-        {
+        if reason.as_object().is_some_and(|object| {
+            matches!(object.data().kind, Kind::Error)
+                || object.own_property(&Key::name("stack")).is_some()
+        }) {
             return Thrown(reason);
         }
         let text = crate::inspect::inspect(self, &reason, crate::inspect::DEPTH)
