@@ -89,6 +89,7 @@ fn boxes_text_and_shadows_cover_what_they_paint() {
         rtl: false,
         grayscale: false,
         underline_offset: None,
+        decorations: Vec::new(),
     };
     // Ink may reach an em past a short run: 13.333px here, over half the
     // run's 10px height.
@@ -107,6 +108,7 @@ fn boxes_text_and_shadows_cover_what_they_paint() {
         rtl: false,
         grayscale: false,
         underline_offset: None,
+        decorations: Vec::new(),
     };
     assert_eq!(bounds(&[tall], IDENTITY), Some([-20.0, -20.0, 70.0, 60.0]));
     let shadow = |inset| DisplayItem::Shadow {
@@ -260,6 +262,7 @@ fn opacity_groups_ignore_filter_pops_and_keep_conservative_extents() {
         rtl: false,
         grayscale: false,
         underline_offset: None,
+        decorations: Vec::new(),
     };
     assert_eq!(
         opacity_extent(&[ink], IDENTITY),

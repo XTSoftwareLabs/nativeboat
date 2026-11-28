@@ -2077,6 +2077,7 @@ fn full_window_text_paint_timing() {
         rtl: false,
         grayscale: false,
         underline_offset: None,
+        decorations: Vec::new(),
     };
     let fill = DisplayItem::Fill {
         rect: Rect::new(0.0, 0.0, 1500.0, 1000.0),

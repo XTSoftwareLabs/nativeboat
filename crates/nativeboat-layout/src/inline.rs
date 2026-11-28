@@ -8,7 +8,7 @@ use nativeboat_css::Color;
 use nativeboat_css::LengthPercentage;
 use nativeboat_css::types::{Direction, TextAlign, VerticalAlign, WhiteSpace};
 use nativeboat_dom::NodeId;
-use nativeboat_ir::Font;
+use nativeboat_ir::{Font, TextDecoration};
 
 /// An inline element whose box shows: its background and borders cover its
 /// text on each line, and its margins, borders and padding take space where
@@ -62,6 +62,9 @@ pub struct Segment {
     pub underline_offset: Option<f32>,
     /// Line-through decoration.
     pub line_through: bool,
+    /// Decorations the font does not draw, in colors, styles, thicknesses
+    /// or places of their own.
+    pub decorations: Rc<[TextDecoration]>,
     /// Extra space after each character.
     pub letter_spacing: f32,
     /// White-space handling.

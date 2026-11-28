@@ -556,6 +556,55 @@ pub fn decoration_line(values: &[ComponentValue], _: &Context) -> Option<TextDec
     Some(line)
 }
 
+/// `text-decoration-thickness`: `auto`, `from-font`, a length or a
+/// percentage of the font size.
+pub fn decoration_thickness(
+    values: &[ComponentValue],
+    context: &Context,
+) -> Option<DecorationThickness> {
+    let value = single(values)?;
+    if value.is_ident("auto") {
+        return Some(DecorationThickness::Auto);
+    }
+    if value.is_ident("from-font") {
+        return Some(DecorationThickness::FromFont);
+    }
+    if let ComponentValue::Token(Token::Percentage(percent)) = value {
+        return Some(DecorationThickness::Px(
+            *percent as f32 / 100.0 * context.length.font_size,
+        ));
+    }
+    pixels(values, context).map(|px| DecorationThickness::Px(px.0))
+}
+
+/// `text-underline-position`: `auto`, or `from-font` or `under` with or
+/// without `left` or `right`.
+pub fn underline_position(values: &[ComponentValue], _: &Context) -> Option<UnderlinePosition> {
+    let words = without_whitespace(values)
+        .iter()
+        .map(ComponentValue::ident)
+        .collect::<Option<Vec<_>>>()?;
+    let mut position = UnderlinePosition::default();
+    match words.as_slice() {
+        [only] if only == "auto" => return Some(position),
+        [] => return None,
+        words if words.len() > 2 => return None,
+        _ => {}
+    }
+    for word in &words {
+        let base = position.from_font || position.under;
+        match word.as_str() {
+            "from-font" if !base => position.from_font = true,
+            "under" if !base => position.under = true,
+            "left" | "right" if position.right.is_none() => {
+                position.right = Some(word == "right");
+            }
+            _ => return None,
+        }
+    }
+    Some(position)
+}
+
 /// `vertical-align`: a keyword, or a length or percentage.
 pub fn vertical_align(values: &[ComponentValue], context: &Context) -> Option<VerticalAlign> {
     match single_ident(values) {

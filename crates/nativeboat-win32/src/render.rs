@@ -6,8 +6,12 @@ use crate::prelude::*;
 use core::cell::RefCell;
 use core::ptr::null_mut;
 use nativeboat_css::Color;
-use nativeboat_css::types::{BorderStyle, FillRule, Filter, LineCap, LineJoin};
-use nativeboat_ir::{Corner, DisplayItem, PathSegment, Radii, Rect, Stroke};
+use nativeboat_css::types::{
+    BorderStyle, FillRule, Filter, LineCap, LineJoin, TextDecorationStyle,
+};
+use nativeboat_ir::{
+    Corner, DecorationLine, DisplayItem, PathSegment, Radii, Rect, Stroke, TextDecoration,
+};
 use nativeboat_layout::svg::multiply;
 use windows_sys::Win32::Foundation::{COLORREF, RECT};
 use windows_sys::Win32::Graphics::Gdi::*;
@@ -1006,6 +1010,7 @@ impl Painter {
         color: Color,
         (underline, line_through, underline_offset): (bool, bool, Option<f32>),
         (letter_spacing, rtl, grayscale): (f32, bool, bool),
+        decorations: &[TextDecoration],
     ) {
         // Letter spacing follows each character, in device pixels.
         let spacing = letter_spacing * self.scale;
@@ -1043,6 +1048,12 @@ impl Painter {
             let x = area.X.round() as i32;
             let (ascent, descent) = fonts::content_metrics(self.dc, font.size * self.scale)
                 .unwrap_or((metrics.tmAscent as f32, metrics.tmDescent as f32));
+            // The primary font places the decorations drawn here.
+            let lines = if decorations.is_empty() {
+                None
+            } else {
+                fonts::decoration_metrics(self.dc)
+            };
             let leading = ((area.Height - (ascent + descent)) / 2.0 + 1e-3).floor();
             let top = (rect.y - self.scroll.1) * self.scale;
             let y = text_row(top + leading);
@@ -1204,6 +1215,146 @@ impl Painter {
             if let (Some(region), Some(beneath), false, true) = (gray, beneath, colored, by_gdi) {
                 self.grayscale(region, &beneath, color);
             }
+            self.decorations(
+                decorations,
+                (area.X, area.X + area.Width),
+                baseline as f32,
+                (ascent, descent),
+                lines,
+            );
+        }
+    }
+
+    /// Draws the decorations the font does not across a span of device
+    /// pixels, about the baseline of text with that ascent and descent:
+    /// where the font's underline and strikeout metrics put them, at the
+    /// font's thickness, unless the decorations set their own.
+    fn decorations(
+        &self,
+        decorations: &[TextDecoration],
+        (left, right): (f32, f32),
+        baseline: f32,
+        (ascent, descent): (f32, f32),
+        font: Option<[i32; 4]>,
+    ) {
+        let [underline_at, underline_size, strike_at, strike_size] = font.unwrap_or([
+            -(descent / 2.0).round() as i32,
+            1,
+            (ascent / 3.0).round() as i32,
+            1,
+        ]);
+        let span = (left.round(), right.round());
+        for decoration in decorations {
+            let own = match decoration.line {
+                DecorationLine::LineThrough => strike_size,
+                _ => underline_size,
+            }
+            .max(1) as f32;
+            let thickness = decoration
+                .thickness
+                .map_or(own, |px| (px * self.scale).round())
+                .max(1.0);
+            let offset = decoration
+                .offset
+                .map_or(0.0, |px| (px * self.scale).round());
+            let top = match decoration.line {
+                DecorationLine::Underline if decoration.under => {
+                    baseline + descent.round() + offset
+                }
+                DecorationLine::Underline if decoration.offset.is_some() => baseline + offset,
+                DecorationLine::Underline => baseline - underline_at as f32,
+                DecorationLine::Overline => baseline - ascent.round(),
+                // A thicker line keeps the font's strikeout's middle.
+                DecorationLine::LineThrough => {
+                    (baseline - strike_at as f32 + (own - thickness) / 2.0).round()
+                }
+            };
+            self.decoration_line(span, top, thickness, decoration.style, decoration.color);
+        }
+    }
+
+    /// One decoration line, `thickness` device pixels thick below `top`.
+    fn decoration_line(
+        &self,
+        (left, right): (f32, f32),
+        top: f32,
+        thickness: f32,
+        style: TextDecorationStyle,
+        color: Color,
+    ) {
+        if right <= left {
+            return;
+        }
+        let color = argb(color, self.opacity());
+        // SAFETY: the graphics is live; the brush, pen and path are deleted
+        // here, and the saved state restores the clip and smoothing.
+        unsafe {
+            if style == TextDecorationStyle::Wavy {
+                // Waves rise and fall a thickness and a pixel about the
+                // line's middle, each half a wave twice that long.
+                let amplitude = thickness + 1.0;
+                let middle = top + amplitude;
+                let step = 2.0 * amplitude;
+                let mut state = 0;
+                GdipSaveGraphics(self.graphics, &mut state);
+                GdipSetSmoothingMode(self.graphics, SmoothingModeAntiAlias);
+                GdipSetClipRect(
+                    self.graphics,
+                    left,
+                    top - thickness,
+                    right - left,
+                    2.0 * (amplitude + thickness),
+                    CombineModeIntersect,
+                );
+                let mut path = null_mut();
+                GdipCreatePath(FillModeAlternate, &mut path);
+                let (mut x, mut rise) = (left, true);
+                while x < right {
+                    let peak = if rise {
+                        middle - amplitude
+                    } else {
+                        middle + amplitude
+                    };
+                    let half = x + step / 2.0;
+                    GdipAddPathBezier(path, x, middle, half, peak, half, peak, x + step, middle);
+                    x += step;
+                    rise = !rise;
+                }
+                let mut pen = null_mut();
+                GdipCreatePen1(color, thickness, UnitPixel, &mut pen);
+                GdipDrawPath(self.graphics, pen, path);
+                GdipDeletePen(pen);
+                GdipDeletePath(path);
+                GdipRestoreGraphics(self.graphics, state);
+                return;
+            }
+            let mut brush = null_mut();
+            GdipCreateSolidFill(color, &mut brush);
+            let brush: *mut GpBrush = brush.cast();
+            // Dots and dashes repeat with gaps as long as dots, and a third
+            // of dashes, as Chromium spaces them.
+            let (piece, gap) = match style {
+                TextDecorationStyle::Dotted => (thickness, thickness),
+                TextDecorationStyle::Dashed => (3.0 * thickness, thickness),
+                _ => (right - left, 0.0),
+            };
+            let mut x = left;
+            while x < right {
+                let width = piece.min(right - x);
+                GdipFillRectangle(self.graphics, brush, x, top, width, thickness);
+                if style == TextDecorationStyle::Double {
+                    GdipFillRectangle(
+                        self.graphics,
+                        brush,
+                        x,
+                        top + 2.0 * thickness,
+                        width,
+                        thickness,
+                    );
+                }
+                x += piece + gap;
+            }
+            GdipDeleteBrush(brush);
         }
     }
 
@@ -2364,6 +2515,7 @@ impl Painter {
                 rtl,
                 grayscale,
                 underline_offset,
+                decorations,
             } => self.text(
                 *rect,
                 text,
@@ -2371,6 +2523,7 @@ impl Painter {
                 *color,
                 (*underline, *line_through, *underline_offset),
                 (*letter_spacing, *rtl, *grayscale),
+                decorations,
             ),
             DisplayItem::Path {
                 segments,

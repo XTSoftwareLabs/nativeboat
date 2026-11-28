@@ -323,6 +323,12 @@ pub struct ComputedStyle {
     pub text_decoration_line: TextDecorationLine,
     /// `text-decoration-color`
     pub text_decoration_color: OptionalColor,
+    /// `text-decoration-style`
+    pub text_decoration_style: TextDecorationStyle,
+    /// `text-decoration-thickness`
+    pub text_decoration_thickness: DecorationThickness,
+    /// `text-underline-position`
+    pub text_underline_position: UnderlinePosition,
     /// `text-transform`
     pub text_transform: TextTransform,
     /// `white-space-collapse` and `text-wrap-mode`
@@ -607,6 +613,13 @@ impl Default for ComputedStyle {
             text_align: TextAlign::Start,
             text_decoration_line: TextDecorationLine::default(),
             text_decoration_color: OptionalColor(None),
+            text_decoration_style: TextDecorationStyle::Solid,
+            text_decoration_thickness: DecorationThickness::Auto,
+            text_underline_position: UnderlinePosition {
+                from_font: false,
+                under: false,
+                right: None,
+            },
             text_transform: TextTransform::None,
             white_space: WhiteSpace::Normal,
             text_wrap_style: TextWrapStyle::Auto,
@@ -793,6 +806,9 @@ longhands! {
     TextAlign => "text-align", true, parsers::keyword::<TextAlign>, text_align;
     TextDecorationLine => "text-decoration-line", false, parsers::decoration_line, text_decoration_line;
     TextDecorationColor => "text-decoration-color", false, parsers::optional_color, text_decoration_color;
+    TextDecorationStyle => "text-decoration-style", false, parsers::keyword::<TextDecorationStyle>, text_decoration_style;
+    TextDecorationThickness => "text-decoration-thickness", false, parsers::decoration_thickness, text_decoration_thickness;
+    TextUnderlinePosition => "text-underline-position", true, parsers::underline_position, text_underline_position;
     TextUnderlineOffset => "text-underline-offset", true, parsers::underline_offset, text_underline_offset;
     TextTransform => "text-transform", true, parsers::keyword::<TextTransform>, text_transform;
     WhiteSpaceCollapse => "white-space-collapse", true, parsers::keyword::<WhiteSpaceCollapse>, white_space.collapse;

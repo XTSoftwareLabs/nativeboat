@@ -253,6 +253,78 @@ fn shorthands_aliases_and_prefixes() {
 }
 
 #[test]
+fn text_decoration_longhands_and_shorthand() {
+    use crate::types::{DecorationThickness, TextDecorationStyle, UnderlinePosition};
+    let style = style_of(
+        "#text { font-size: 20px; text-decoration: dotted red 10% underline overline; text-underline-position: right under }",
+        "text",
+    );
+    assert!(style.text_decoration_line.underline && style.text_decoration_line.overline);
+    assert_eq!(style.text_decoration_style, TextDecorationStyle::Dotted);
+    assert_eq!(style.text_decoration_color.0, Some(Color::rgb(255, 0, 0)));
+    assert_eq!(
+        style.text_decoration_thickness,
+        DecorationThickness::Px(2.0)
+    );
+    assert_eq!(
+        style.text_underline_position,
+        UnderlinePosition {
+            from_font: false,
+            under: true,
+            right: Some(true),
+        }
+    );
+    assert_eq!(
+        style.property_value("text-underline-position").unwrap(),
+        "under right"
+    );
+    // The shorthand resets what it leaves out.
+    let style = style_of(
+        "#text { text-decoration-style: wavy; text-decoration-thickness: from-font; text-decoration: none }",
+        "text",
+    );
+    assert_eq!(style.text_decoration_style, TextDecorationStyle::Solid);
+    assert_eq!(style.text_decoration_thickness, DecorationThickness::Auto);
+    assert!(style.text_decoration_line.is_none());
+    for invalid in [
+        "underline none",
+        "none none",
+        "dotted dashed",
+        "red blue",
+        "1px 2px",
+    ] {
+        let css = format!("#text {{ text-decoration: overline; text-decoration: {invalid} }}");
+        assert!(
+            style_of(&css, "text").text_decoration_line.overline,
+            "{invalid}"
+        );
+    }
+    for invalid in [
+        "under from-font",
+        "left right",
+        "auto under",
+        "under left right",
+    ] {
+        let css = format!(
+            "#text {{ text-underline-position: under; text-underline-position: {invalid} }}"
+        );
+        assert!(
+            style_of(&css, "text").text_underline_position.under,
+            "{invalid}"
+        );
+    }
+    let style = style_of("#text { text-decoration-thickness: from-font }", "text");
+    assert_eq!(
+        style.text_decoration_thickness,
+        DecorationThickness::FromFont
+    );
+    assert_eq!(
+        style.property_value("text-decoration-thickness").unwrap(),
+        "from-font"
+    );
+}
+
+#[test]
 fn white_space_and_text_wrap_share_the_wrap_mode() {
     use crate::types::{TextWrapMode, TextWrapStyle, WhiteSpace, WhiteSpaceCollapse};
     let white_space = |css: &str| {

@@ -13,11 +13,11 @@ use alloc::rc::Rc;
 use nativeboat_css::types::{
     BackgroundImage, BorderCollapse, BorderStyle, Content, ContentItem, Direction, Display,
     LengthPercentageAuto as CssLengthAuto, LineHeight, ListStylePosition, ListStyleType,
-    OverflowWrap, PositionKind, Px, TrackSize, VerticalAlign, WordBreak,
+    OverflowWrap, PositionKind, Px, TextDecorationStyle, TrackSize, VerticalAlign, WordBreak,
 };
 use nativeboat_css::{Color, ComputedStyle, PseudoElement, UsedBox};
 use nativeboat_dom::{Dom, NodeId, NodeKind};
-use nativeboat_ir::{ControlKind, Font, Rect, control_for};
+use nativeboat_ir::{ControlKind, DecorationLine, Font, Rect, TextDecoration, control_for};
 use taffy::prelude::{
     AlignItems, AlignSelf, AvailableSpace, Display as TaffyDisplay, FlexWrap, GridPlacement,
     JustifyContent, Layout, LengthPercentage, LengthPercentageAuto, Line, Position,
@@ -168,6 +168,8 @@ pub struct TextRun {
     pub underline_offset: Option<f32>,
     /// Line-through.
     pub line_through: bool,
+    /// Decorations the font does not draw.
+    pub decorations: Rc<[TextDecoration]>,
     /// Extra space after each character.
     pub letter_spacing: f32,
     /// The text node (or the element of generated content).
@@ -952,7 +954,7 @@ impl RoundTree for Tree<'_> {
 struct Flow {
     mode: Mode,
     context: (usize, usize),
-    lines: (bool, bool),
+    lines: Lines,
     /// The nearest positioned inline element around the content, which
     /// absolutely positioned descendants are placed against.
     anchor: Option<NodeId>,
@@ -1007,6 +1009,18 @@ struct Builder<'a> {
     images: HashMap<String, (f32, f32)>,
     /// The counters generated content shows, resolved when first needed.
     counters: core::cell::OnceCell<crate::counters::Resolved>,
+    /// The lists of decorations text draws, which [`Lines`] index.
+    decorations: core::cell::RefCell<Vec<Rc<[TextDecoration]>>>,
+}
+
+/// The text decorations of the boxes around content: an index into the
+/// builder's lists.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Lines(usize);
+
+impl Lines {
+    /// No decorations.
+    const NONE: Lines = Lines(0);
 }
 
 /// A length that does not depend on a percentage basis, as inline boxes'
@@ -1082,11 +1096,40 @@ fn marker_text(kind: ListStyleType, ordinal: i64) -> Option<String> {
     })
 }
 
-fn decoration(style: &ComputedStyle) -> (bool, bool) {
-    (
-        style.text_decoration_line.underline,
-        style.text_decoration_line.line_through,
-    )
+impl Builder<'_> {
+    /// The decorations text inside an element draws: those of the boxes
+    /// around it, then the element's own, in its decoration color.
+    fn decorate(&self, outer: Lines, style: &ComputedStyle) -> Lines {
+        let line = style.text_decoration_line;
+        if line.is_none() {
+            return outer;
+        }
+        let color = style
+            .text_decoration_color
+            .0
+            .or(style.text_fill_color.0)
+            .unwrap_or(style.color);
+        let mut list = self.decorations.borrow()[outer.0].to_vec();
+        for (on, kind) in [
+            (line.underline, DecorationLine::Underline),
+            (line.overline, DecorationLine::Overline),
+            (line.line_through, DecorationLine::LineThrough),
+        ] {
+            if on {
+                list.push(TextDecoration {
+                    line: kind,
+                    color,
+                    style: style.text_decoration_style,
+                    thickness: style.text_decoration_thickness.pixels(),
+                    offset: style.text_underline_offset.0,
+                    under: style.text_underline_position.under,
+                });
+            }
+        }
+        let mut lists = self.decorations.borrow_mut();
+        lists.push(Rc::from(list));
+        Lines(lists.len() - 1)
+    }
 }
 
 impl Builder<'_> {
@@ -1116,10 +1159,32 @@ impl Builder<'_> {
         style: &ComputedStyle,
         node: NodeId,
         element: NodeId,
-        lines: (bool, bool),
+        lines: Lines,
         after_space: &mut bool,
     ) -> Segment {
         let text = transform(text, style.text_transform);
+        // Glyphs fill in `-webkit-text-fill-color`.
+        let color = style.text_fill_color.0.unwrap_or(style.color);
+        // The font draws solid underlines and line-throughs of its own
+        // thickness in the text's color; others are drawn apart.
+        let (mut underline, mut underline_offset, mut line_through) = (false, None, false);
+        let mut drawn = Vec::new();
+        for decoration in self.decorations.borrow()[lines.0].iter() {
+            let plain = decoration.style == TextDecorationStyle::Solid
+                && decoration.thickness.is_none()
+                && decoration.color == color
+                && !decoration.under;
+            match decoration.line {
+                DecorationLine::Underline if plain => {
+                    if !underline {
+                        underline = true;
+                        underline_offset = decoration.offset;
+                    }
+                }
+                DecorationLine::LineThrough if plain => line_through = true,
+                _ => drawn.push(*decoration),
+            }
+        }
         // Tab stops are `tab-size` spaces apart, with letter spacing.
         let tab = if text.contains('\t') && !style.white_space.collapses_spaces() {
             let font = font_of(style);
@@ -1141,12 +1206,11 @@ impl Builder<'_> {
             font: font_of(style),
             line_height: line_height(style, self.options.measurer),
             normal_line: style.line_height == LineHeight::Normal,
-            // Glyphs fill in `-webkit-text-fill-color`; decorations, drawn
-            // with them, take it too.
-            color: style.text_fill_color.0.unwrap_or(style.color),
-            underline: lines.0,
-            underline_offset: style.text_underline_offset.0,
-            line_through: lines.1,
+            color,
+            underline,
+            underline_offset,
+            line_through,
+            decorations: Rc::from(drawn),
             letter_spacing: style.letter_spacing.0,
             white_space: style.white_space,
             word_breaking: match (style.word_break, style.overflow_wrap) {
@@ -1173,7 +1237,7 @@ impl Builder<'_> {
         edge: Edge,
         style: &ComputedStyle,
         node: NodeId,
-        lines: (bool, bool),
+        lines: Lines,
     ) -> Segment {
         let mut after_space = false;
         Segment {
@@ -1296,7 +1360,7 @@ impl Builder<'_> {
             let Some(style) = self.styles.get(object).cloned() else {
                 continue;
             };
-            let child = self.element(object, &style, true, (index, context.1));
+            let child = self.element(object, &style, true, (index, context.1), Lines::NONE);
             let placed = &mut self.nodes[child].style;
             placed.position = Position::Absolute;
             placed.inset = TaffyRect {
@@ -1470,7 +1534,7 @@ impl Builder<'_> {
         &self,
         element: NodeId,
         pseudo: &PseudoElement,
-        lines: (bool, bool),
+        lines: Lines,
         after_space: &mut bool,
     ) -> Option<(Segment, alloc::rc::Rc<ComputedStyle>)> {
         let style = self.styles.pseudo(element, pseudo)?;
@@ -1504,14 +1568,13 @@ impl Builder<'_> {
                 }
             })
             .collect();
-        let own = decoration(style);
         Some((
             self.segment(
                 &text,
                 style,
                 element,
                 element,
-                (lines.0 || own.0, lines.1 || own.1),
+                self.decorate(lines, style),
                 after_space,
             ),
             style.clone(),
@@ -1679,7 +1742,7 @@ impl Builder<'_> {
             style,
             node,
             node,
-            decoration(style),
+            self.decorate(Lines::NONE, style),
             &mut after_space,
         );
         // At `line-height: normal` the label's line is the primary font's
@@ -1834,7 +1897,8 @@ impl Builder<'_> {
             } else {
                 context.0
             };
-            let child = self.element(node, &style, true, context);
+            // Out-of-flow boxes do not take the decorations around them.
+            let child = self.element(node, &style, true, context, Lines::NONE);
             if style.position == PositionKind::Absolute
                 && let Some(anchor) = anchor
             {
@@ -1850,8 +1914,7 @@ impl Builder<'_> {
             && !replaced
             && !self.has_box_content(node)
         {
-            let own = decoration(&style);
-            let lines = (lines.0 || own.0, lines.1 || own.1);
+            let lines = self.decorate(lines, &style);
             let outer_shift = self.shift;
             self.shift += baseline_shift(&style, parent_style, self.options.measurer);
             // An embedding or isolate opens a level in its direction.
@@ -1947,7 +2010,22 @@ impl Builder<'_> {
         // Chromium splits it around them: they take the containing block's
         // width, and the element's box spans them.
         let split = style.display == Display::Inline && !replaced && self.has_block_content(node);
-        let child = self.element(node, &style, parent_mode != Mode::Block || split, context);
+        // Decorations reach in-flow block-level descendants, not floats or
+        // atomic inline boxes.
+        let inherited = if style.float != nativeboat_css::types::Float::None
+            || (style.display.is_inline_level() && style.display != Display::Inline)
+        {
+            Lines::NONE
+        } else {
+            lines
+        };
+        let child = self.element(
+            node,
+            &style,
+            parent_mode != Mode::Block || split,
+            context,
+            inherited,
+        );
         *after_space = false;
         if !split
             && (style.display.is_inline_level() || replaced && style.display == Display::Inline)
@@ -2330,6 +2408,7 @@ impl Builder<'_> {
         style: &ComputedStyle,
         blockify: bool,
         context: (usize, usize),
+        outer_lines: Lines,
     ) -> usize {
         self.request_background(style);
         let display = if blockify {
@@ -2349,7 +2428,7 @@ impl Builder<'_> {
                 style,
                 node,
                 node,
-                decoration(style),
+                self.decorate(outer_lines, style),
                 &mut after_space,
             );
             // An empty caption still takes a line.
@@ -2418,7 +2497,7 @@ impl Builder<'_> {
                 let flow = Flow {
                     mode: Mode::Block,
                     context,
-                    lines: decoration(style),
+                    lines: self.decorate(outer_lines, style),
                     anchor: None,
                 };
                 let mut after_space = true;
@@ -2441,8 +2520,14 @@ impl Builder<'_> {
             let taffy = convert(style, Mode::Block, &mut self.calcs);
             let index = self.add(Some(node), Kind::Container(Mode::Block), taffy);
             let mut after_space = true;
-            let segment =
-                self.segment(&alt, style, node, node, decoration(style), &mut after_space);
+            let segment = self.segment(
+                &alt,
+                style,
+                node,
+                node,
+                self.decorate(outer_lines, style),
+                &mut after_space,
+            );
             let text = self.inline_leaf(vec![segment], style);
             self.nodes[index].children.extend(text);
             return index;
@@ -2618,7 +2703,7 @@ impl Builder<'_> {
         self.nodes[index].fixed_table = table && fixed_table;
         let positioned = style.position != PositionKind::Static;
         let context = (if positioned { index } else { context.0 }, context.1);
-        let lines = decoration(style);
+        let lines = self.decorate(outer_lines, style);
         let mut after_space = true;
         let mut items = Vec::new();
         let mut marker = None;
@@ -3038,6 +3123,7 @@ fn collect_results(
                     underline: segment.underline,
                     underline_offset: segment.underline_offset,
                     line_through: segment.line_through,
+                    decorations: segment.decorations.clone(),
                     letter_spacing: segment.letter_spacing,
                     // The ellipsis is no text of the node's: like generated
                     // content, it belongs to the element.
@@ -3596,6 +3682,7 @@ fn layout_pass(
         bidi: (0, false),
         images: HashMap::new(),
         counters: core::cell::OnceCell::new(),
+        decorations: core::cell::RefCell::new(vec![Rc::from([])]),
     };
     let (width, height) = options.viewport;
     let viewport = builder.add(
@@ -3617,7 +3704,7 @@ fn layout_pass(
     if let Some((root, style)) = root
         && style.display != Display::None
     {
-        let child = builder.element(root, &style, true, (viewport, viewport));
+        let child = builder.element(root, &style, true, (viewport, viewport), Lines::NONE);
         let mut children = vec![child];
         children.extend(builder.deferred.drain(..).map(|(_, child)| child));
         builder.nodes[viewport].children = children;

@@ -1191,6 +1191,7 @@ impl Painter<'_> {
                 rtl: false,
                 grayscale: false,
                 underline_offset: None,
+                decorations: Vec::new(),
             });
         }
         if pushed {

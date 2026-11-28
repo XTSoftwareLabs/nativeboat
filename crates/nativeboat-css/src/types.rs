@@ -1314,6 +1314,83 @@ impl ToCss for TextDecorationLine {
     }
 }
 
+keywords! {
+    /// The `text-decoration-style` property.
+    TextDecorationStyle default Solid {
+        Solid => "solid",
+        Double => "double",
+        Dotted => "dotted",
+        Dashed => "dashed",
+        Wavy => "wavy",
+    }
+}
+
+/// `text-decoration-thickness`: the font's thickness for `auto` and
+/// `from-font`, or a length; a percentage is of the element's font size.
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
+pub enum DecorationThickness {
+    /// `auto`
+    #[default]
+    Auto,
+    /// `from-font`
+    FromFont,
+    /// A length, in pixels.
+    Px(f32),
+}
+
+impl DecorationThickness {
+    /// The thickness in pixels a style sets, if it sets one.
+    pub fn pixels(self) -> Option<f32> {
+        match self {
+            DecorationThickness::Px(px) => Some(px),
+            _ => None,
+        }
+    }
+}
+
+impl ToCss for DecorationThickness {
+    fn to_css(&self) -> String {
+        match self {
+            DecorationThickness::Auto => "auto".to_owned(),
+            DecorationThickness::FromFont => "from-font".to_owned(),
+            DecorationThickness::Px(px) => Px(*px).to_css(),
+        }
+    }
+}
+
+/// `text-underline-position`. `under` puts underlines below the text's
+/// descent; `left` and `right` only place those of vertical text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct UnderlinePosition {
+    /// `from-font`
+    pub from_font: bool,
+    /// `under`
+    pub under: bool,
+    /// `left` (`Some(false)`) or `right` (`Some(true)`).
+    pub right: Option<bool>,
+}
+
+impl ToCss for UnderlinePosition {
+    fn to_css(&self) -> String {
+        let mut words = Vec::new();
+        if self.from_font {
+            words.push("from-font");
+        }
+        if self.under {
+            words.push("under");
+        }
+        match self.right {
+            Some(true) => words.push("right"),
+            Some(false) => words.push("left"),
+            None => {}
+        }
+        if words.is_empty() {
+            words.push("auto");
+        }
+        words.join(" ")
+    }
+}
+
 /// `text-underline-offset`: how far below the alphabetic baseline
 /// underlines begin, in pixels; `None` for `auto`, the font's position.
 #[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]

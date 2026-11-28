@@ -2271,6 +2271,7 @@ impl Painter<'_> {
             rtl: run.rtl,
             grayscale,
             underline_offset: run.underline_offset,
+            decorations: run.decorations.to_vec(),
         };
         let Some((span, left, right, before, after)) = self.selected(index, run) else {
             surface.items.push(text(run.color));
