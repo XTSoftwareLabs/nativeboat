@@ -925,6 +925,7 @@ fn paint_line(dc: HDC, area: RECT, line: &Line, position: f32, scale: f32) {
         rtl: false,
         grayscale: line.grayscale,
         underline_offset: None,
+        decorations: Vec::new(),
     };
     let info = BITMAPINFO {
         bmiHeader: BITMAPINFOHEADER {

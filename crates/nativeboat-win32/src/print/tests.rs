@@ -33,6 +33,7 @@ fn document() -> NativeTree {
                     rtl: false,
                     grayscale: false,
                     underline_offset: None,
+                    decorations: Vec::new(),
                 },
             ],
             ..Surface::default()

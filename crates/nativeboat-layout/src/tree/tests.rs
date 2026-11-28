@@ -438,7 +438,69 @@ fn inline_text_wraps_with_styles() {
     assert_eq!(result.runs[1].element, bold);
     assert_eq!(result.runs[1].font.weight, 700);
     assert!(result.runs[3].line_through && !result.runs[3].underline);
-    assert!(result.runs[4].line_through && result.runs[4].underline);
+    assert!(result.runs[4].underline && !result.runs[4].line_through);
+    let through: Vec<_> = result.runs[4]
+        .decorations
+        .iter()
+        .map(|decoration| (decoration.line, decoration.color))
+        .collect();
+    assert_eq!(
+        through,
+        vec![(nativeboat_ir::DecorationLine::LineThrough, Color::BLACK)]
+    );
+}
+
+#[test]
+fn decorations_reach_block_descendants_in_their_own_color_and_style() {
+    use nativeboat_css::types::TextDecorationStyle as Style;
+    use nativeboat_ir::DecorationLine as Line;
+    let (_, result) = lay_out(
+        "<div style='text-decoration:underline wavy red;color:green'><p style='color:blue'>a</p>\
+         <span style='display:inline-block'>b</span><u>c</u></div>\
+         <p style='text-decoration:overline 3px'>d</p><p style='text-underline-position:under;text-decoration:underline'>e</p>",
+        "p { margin: 0 }",
+    );
+    // Runs by their text: an inline block's text comes after its line's.
+    let run = |text: &str| result.runs.iter().find(|run| run.text == text).unwrap();
+    let drawn = |text: &str| -> Vec<(Line, Color, Style, Option<f32>, bool)> {
+        run(text)
+            .decorations
+            .iter()
+            .map(|decoration| {
+                (
+                    decoration.line,
+                    decoration.color,
+                    decoration.style,
+                    decoration.thickness,
+                    decoration.under,
+                )
+            })
+            .collect()
+    };
+    let wavy = (
+        Line::Underline,
+        Color::rgb(255, 0, 0),
+        Style::Wavy,
+        None,
+        false,
+    );
+    // A block inside the decorating box draws its decoration.
+    assert!(!run("a").underline);
+    assert_eq!(drawn("a"), vec![wavy]);
+    // An inline block does not.
+    assert!(!run("b").underline && drawn("b").is_empty());
+    // Text in its decoration color has the font draw its own underline.
+    assert!(run("c").underline);
+    assert_eq!(drawn("c"), vec![wavy]);
+    assert_eq!(
+        drawn("d"),
+        vec![(Line::Overline, Color::BLACK, Style::Solid, Some(3.0), false)]
+    );
+    assert!(!run("e").underline);
+    assert_eq!(
+        drawn("e"),
+        vec![(Line::Underline, Color::BLACK, Style::Solid, None, true)]
+    );
 }
 
 #[test]
@@ -905,6 +967,7 @@ fn leaf_and_inline_measurement() {
             underline: false,
             underline_offset: None,
             line_through: false,
+            decorations: alloc::rc::Rc::from([]),
             letter_spacing: 0.0,
             white_space: nativeboat_css::types::WhiteSpace::Normal,
             word_breaking: WordBreaking::Normal,
@@ -1063,6 +1126,7 @@ fn generated_content_needs_items() {
         bidi: (0, false),
         images: HashMap::new(),
         counters: core::cell::OnceCell::new(),
+        decorations: core::cell::RefCell::new(vec![Rc::from([])]),
     };
     let input = dom.get_element_by_id(Dom::DOCUMENT, "i").unwrap();
     let mut after_space = true;
@@ -1071,7 +1135,7 @@ fn generated_content_needs_items() {
             .generated(
                 input,
                 &PseudoElement::Placeholder,
-                (false, false),
+                Lines::NONE,
                 &mut after_space
             )
             .is_none()

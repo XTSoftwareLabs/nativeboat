@@ -1303,6 +1303,13 @@ pub(crate) fn width(dc: HDC, units: &[u16], size: f32, kern: bool) -> f32 {
 /// The thickness of the DC's font's underline in device pixels, from its
 /// outline metrics; `None` for fonts without them.
 pub(crate) fn underline_thickness(dc: HDC) -> Option<i32> {
+    decoration_metrics(dc).map(|metrics| metrics[1])
+}
+
+/// Where the DC's font puts decorations, in device pixels: how far above
+/// the baseline its underline's top is (below it when negative), the
+/// underline's thickness, and the same of its strikeout.
+pub(crate) fn decoration_metrics(dc: HDC) -> Option<[i32; 4]> {
     // SAFETY: a null buffer asks for the size the metrics take.
     let size = unsafe { GetOutlineTextMetricsW(dc, 0, core::ptr::null_mut()) };
     if (size as usize) < size_of::<OUTLINETEXTMETRICW>() {
@@ -1316,7 +1323,13 @@ pub(crate) fn underline_thickness(dc: HDC) -> Option<i32> {
         return None;
     }
     // SAFETY: GDI filled the metrics.
-    Some(unsafe { (*metrics).otmsUnderscoreSize as i32 })
+    let metrics = unsafe { &*metrics };
+    Some([
+        metrics.otmsUnderscorePosition,
+        metrics.otmsUnderscoreSize,
+        metrics.otmsStrikeoutPosition,
+        metrics.otmsStrikeoutSize as i32,
+    ])
 }
 
 /// The width in device pixels of text in the DC's font.

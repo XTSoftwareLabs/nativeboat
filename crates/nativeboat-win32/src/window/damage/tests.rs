@@ -22,6 +22,7 @@ fn text(x: f32, content: &str) -> DisplayItem {
         rtl: false,
         grayscale: false,
         underline_offset: None,
+        decorations: Vec::new(),
     }
 }
 

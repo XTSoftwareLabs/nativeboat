@@ -478,6 +478,7 @@ fn trees_serialize() {
                 rtl: false,
                 grayscale: false,
                 underline_offset: None,
+                decorations: Vec::new(),
             },
             DisplayItem::Image {
                 rect: Rect::default(),

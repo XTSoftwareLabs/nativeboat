@@ -10,6 +10,7 @@ use crate::prelude::*;
 use nativeboat_css::Color;
 use nativeboat_css::types::{
     BorderStyle, FillRule, Filter, LengthPercentageAuto, LineCap, LineJoin, Radius, Size,
+    TextDecorationStyle,
 };
 use serde::{Deserialize, Serialize};
 
@@ -292,6 +293,37 @@ pub enum PathSegment {
     Close,
 }
 
+/// The line a text decoration draws.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DecorationLine {
+    /// Below the baseline.
+    Underline,
+    /// Above the text.
+    Overline,
+    /// Through the middle of the text.
+    LineThrough,
+}
+
+/// A text decoration the backend draws itself rather than having the font
+/// draw it: one in a color, style, thickness or place of its own, or an
+/// overline.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct TextDecoration {
+    /// Which line.
+    pub line: DecorationLine,
+    /// Its color.
+    pub color: Color,
+    /// Solid, double, dotted, dashed or wavy.
+    pub style: TextDecorationStyle,
+    /// Its thickness in pixels, or `None` for the font's.
+    pub thickness: Option<f32>,
+    /// How far below the baseline an underline begins, or below the
+    /// text's descent when `under`, when `text-underline-offset` sets it.
+    pub offset: Option<f32>,
+    /// Whether an underline goes below the text's descent.
+    pub under: bool,
+}
+
 /// How a vector path is outlined.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Stroke {
@@ -380,6 +412,10 @@ pub enum DisplayItem {
         /// when `text-underline-offset` sets it; else the font places it.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         underline_offset: Option<f32>,
+        /// Decorations the font does not draw, which the backend draws
+        /// after the glyphs.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        decorations: Vec<TextDecoration>,
     },
     /// A filled and/or outlined vector path.
     Path {

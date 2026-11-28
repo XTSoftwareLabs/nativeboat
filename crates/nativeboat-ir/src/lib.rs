@@ -26,9 +26,9 @@ pub mod scrollbar;
 
 pub use canvas::{CanvasCommand, CanvasPaint, CanvasSource, TextAnchor};
 pub use native::{
-    Change, Control, ControlKind, ControlState, Corner, DisplayItem, Font, NativeChild, NativeTree,
-    PathSegment, Radii, Rect, ScrollbarAxis, ScrollbarPaint, ScrollbarPart, Scrollbars, Stroke,
-    Surface, control_for, diff,
+    Change, Control, ControlKind, ControlState, Corner, DecorationLine, DisplayItem, Font,
+    NativeChild, NativeTree, PathSegment, Radii, Rect, ScrollbarAxis, ScrollbarPaint,
+    ScrollbarPart, Scrollbars, Stroke, Surface, TextDecoration, control_for, diff,
 };
 #[cfg(feature = "std")]
 pub use package::{AppPackage, Asset, Metadata, Page, Script, Style};

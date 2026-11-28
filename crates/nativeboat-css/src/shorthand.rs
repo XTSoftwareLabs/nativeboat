@@ -234,7 +234,12 @@ pub fn longhands_of(name: &str) -> Option<Vec<PropertyId>> {
             P::LineHeight,
             P::FontFamily,
         ],
-        "text-decoration" => &[P::TextDecorationLine, P::TextDecorationColor],
+        "text-decoration" => &[
+            P::TextDecorationLine,
+            P::TextDecorationStyle,
+            P::TextDecorationColor,
+            P::TextDecorationThickness,
+        ],
         "white-space" => &[P::WhiteSpaceCollapse, P::TextWrapMode],
         "text-wrap" => &[P::TextWrapMode, P::TextWrapStyle],
         "list-style" => &[P::ListStyleType, P::ListStylePosition],
@@ -462,24 +467,26 @@ pub fn expand(name: &str, values: &[ComponentValue]) -> Option<Longhands> {
             Some(vec![(P::FlexDirection, direction), (P::FlexWrap, wrap)])
         }
         "font" => font(&parts),
+        // `line || style || color || thickness`, the line one to three
+        // keywords or `none`.
         "text-decoration" => {
             let mut line = Vec::new();
-            let mut color = text("currentcolor");
+            let mut none = false;
+            let mut style = None;
+            let mut color = None;
+            let mut thickness = None;
             for value in &parts {
-                let is_style = value.ident().is_some_and(|word| {
-                    matches!(
-                        word.as_str(),
-                        "solid" | "double" | "dotted" | "dashed" | "wavy"
-                    )
-                });
-                if is_style {
-                    continue;
-                }
-                if valid(P::TextDecorationLine, value) {
+                if value.is_ident("none") && line.is_empty() && !none {
+                    none = true;
+                } else if !none && !value.is_ident("none") && valid(P::TextDecorationLine, value) {
                     line.push(value.clone());
                     line.push(ComponentValue::Token(Token::Whitespace));
-                } else if valid(P::TextDecorationColor, value) {
-                    color = one(value);
+                } else if style.is_none() && valid(P::TextDecorationStyle, value) {
+                    style = Some(one(value));
+                } else if color.is_none() && valid(P::TextDecorationColor, value) {
+                    color = Some(one(value));
+                } else if thickness.is_none() && valid(P::TextDecorationThickness, value) {
+                    thickness = Some(one(value));
                 } else {
                     return None;
                 }
@@ -489,7 +496,18 @@ pub fn expand(name: &str, values: &[ComponentValue]) -> Option<Longhands> {
             }
             Some(vec![
                 (P::TextDecorationLine, line),
-                (P::TextDecorationColor, color),
+                (
+                    P::TextDecorationStyle,
+                    style.unwrap_or_else(|| text("solid")),
+                ),
+                (
+                    P::TextDecorationColor,
+                    color.unwrap_or_else(|| text("currentcolor")),
+                ),
+                (
+                    P::TextDecorationThickness,
+                    thickness.unwrap_or_else(|| text("auto")),
+                ),
             ])
         }
         "list-style" => {

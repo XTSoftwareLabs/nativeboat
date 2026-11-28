@@ -898,6 +898,7 @@ fn text(text: &str, color: Color) -> DisplayItem {
         rtl: false,
         grayscale: false,
         underline_offset: None,
+        decorations: Vec::new(),
     }
 }
 
@@ -2692,6 +2693,7 @@ fn underlines_at_an_offset_sit_that_far_below_the_baseline() {
                 rtl,
                 grayscale,
                 underline_offset: offset,
+                decorations: Vec::new(),
             },
             other => other,
         };
@@ -2707,6 +2709,91 @@ fn underlines_at_an_offset_sit_that_far_below_the_baseline() {
     // Without an offset GDI underlines at the font's position.
     let font = lowest(None);
     assert!(font < far, "{font} {far}");
+}
+
+#[test]
+fn decorations_apart_from_the_font_take_their_own_color_style_and_place() {
+    use nativeboat_css::types::TextDecorationStyle as Style;
+    use nativeboat_ir::{DecorationLine as Line, TextDecoration};
+    // ClearType gives black glyphs colored fringes: the decorations are
+    // drawn under blank text, and the glyphs' rows measured apart.
+    let item = |text_: &str, decorations: Vec<TextDecoration>| match text(text_, Color::BLACK) {
+        DisplayItem::Text {
+            rect,
+            text,
+            font,
+            color,
+            letter_spacing,
+            rtl,
+            grayscale,
+            ..
+        } => DisplayItem::Text {
+            // Room above for the overline.
+            rect: Rect::new(rect.x, 10.0, rect.width, rect.height),
+            text,
+            font,
+            color,
+            underline: false,
+            line_through: false,
+            letter_spacing,
+            rtl,
+            grayscale,
+            underline_offset: None,
+            decorations,
+        },
+        other => other,
+    };
+    let canvas = Canvas::new(40, 40);
+    paint(canvas.dc, &[item("mn", Vec::new())], 1.0, (0.0, 0.0));
+    let ink: Vec<i32> = (0..40)
+        .filter(|y| (0..40).any(|x| canvas.pixel(x, *y) != WHITE))
+        .collect();
+    let red = |(r, g, b): (u8, u8, u8)| r > 150 && g < 110 && b < 110;
+    // The rows with red, and the red pixels of the first.
+    let drawn = |line: Line, style: Style, thickness: Option<f32>, under: bool| {
+        let canvas = Canvas::new(40, 40);
+        let decoration = TextDecoration {
+            line,
+            color: RED,
+            style,
+            thickness,
+            offset: None,
+            under,
+        };
+        paint(canvas.dc, &[item("  ", vec![decoration])], 1.0, (0.0, 0.0));
+        let rows: Vec<i32> = (0..40)
+            .filter(|y| (0..40).any(|x| red(canvas.pixel(x, *y))))
+            .collect();
+        let first: Vec<i32> = rows.first().map_or_else(Vec::new, |row| {
+            (0..40).filter(|x| red(canvas.pixel(*x, *row))).collect()
+        });
+        (rows, first)
+    };
+    let (rows, first) = drawn(Line::Underline, Style::Solid, Some(2.0), false);
+    assert_eq!(rows.len(), 2, "{rows:?}");
+    assert_eq!(rows[1], rows[0] + 1);
+    assert_eq!(first.len(), 40);
+    // Below the descent, under the font's own place.
+    let (under, _) = drawn(Line::Underline, Style::Solid, Some(2.0), true);
+    assert!(under[0] > rows[0], "{under:?} {rows:?}");
+    // An overline sits above the glyphs and a line-through across them.
+    let (over, _) = drawn(Line::Overline, Style::Solid, None, false);
+    assert!(over[0] < ink[0], "{over:?} {ink:?}");
+    let (through, _) = drawn(Line::LineThrough, Style::Solid, None, false);
+    assert!(
+        through[0] > ink[0] && through[0] < *ink.last().unwrap(),
+        "{through:?} {ink:?}"
+    );
+    // Dots leave gaps as long as themselves; a double line two rows.
+    let (_, dots) = drawn(Line::Underline, Style::Dotted, Some(2.0), false);
+    assert_eq!(&dots[..4], &[0, 1, 4, 5]);
+    let (double, _) = drawn(Line::Underline, Style::Double, Some(1.0), false);
+    assert_eq!(double.len(), 2);
+    assert_eq!(double[1], double[0] + 2);
+    // Antialiased waves reach a thickness and a pixel either side of
+    // their middle.
+    let (wave, _) = drawn(Line::Underline, Style::Wavy, Some(1.0), true);
+    assert!(wave.len() >= 4, "{wave:?}");
 }
 
 #[test]

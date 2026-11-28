@@ -24,6 +24,7 @@ fn segment(text: &str, white_space: WhiteSpace, line_height: f32) -> Segment {
         underline: false,
         underline_offset: None,
         line_through: false,
+        decorations: alloc::rc::Rc::from([]),
         letter_spacing: 0.0,
         white_space,
         word_breaking: WordBreaking::Normal,
