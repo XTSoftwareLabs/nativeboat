@@ -751,7 +751,61 @@ pub(crate) fn web_contents(
         }
     };
     contents.define(Key::name("session"), Property::data(Value::Object(session)));
+    main_frame(realm, &contents);
     Ok(contents)
+}
+
+/// `webContents.mainFrame`: the page, which has no frames of its own the
+/// main process sees. It reads the contents' URL and sends through them.
+fn main_frame(realm: &mut Realm, contents: &Object) {
+    let frame = realm.object();
+    let source = contents.clone();
+    let url = realm.function("get url", 0, false, move |realm, _, _| {
+        let contents = Value::Object(source.clone());
+        let get_url = ops::get_named(realm, &contents, "getURL")?;
+        ops::call(realm, &get_url, contents, &[])
+    });
+    frame.define(
+        Key::name("url"),
+        Property {
+            slot: crate::Slot::Accessor {
+                get: Some(url),
+                set: None,
+            },
+            enumerable: true,
+            configurable: true,
+        },
+    );
+    let process = Value::Number(f64::from(crate::platform::process_id()));
+    for (name, value) in [
+        ("processId", process.clone()),
+        ("osProcessId", process),
+        ("routingId", Value::Number(1.0)),
+        ("name", Value::str("")),
+        ("parent", Value::Null),
+        ("top", Value::Object(frame.clone())),
+    ] {
+        frame.define(Key::name(name), Property::data(value));
+    }
+    for name in ["frames", "framesInSubtree"] {
+        let list = realm.array(Vec::new());
+        frame.define(Key::name(name), Property::data(Value::Object(list)));
+    }
+    for name in ["send", "postMessage"] {
+        let source = contents.clone();
+        define(realm, &frame, name, 1, move |realm, _, args| {
+            let contents = Value::Object(source.clone());
+            let method = ops::get_named(realm, &contents, name)?;
+            ops::call(realm, &method, contents, args)
+        });
+    }
+    let source = contents.clone();
+    define(realm, &frame, "isDestroyed", 0, move |realm, _, _| {
+        let contents = Value::Object(source.clone());
+        let method = ops::get_named(realm, &contents, "isDestroyed")?;
+        ops::call(realm, &method, contents, &[])
+    });
+    contents.define(Key::name("mainFrame"), Property::data(Value::Object(frame)));
 }
 
 /// Chromium's zoom level of a zoom factor: each level zooms 20% more.
