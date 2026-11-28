@@ -3170,6 +3170,24 @@ fn masks_keep_what_their_image_covers() {
             .iter()
             .any(|item| matches!(item, DisplayItem::Text { .. }))
     );
+    // Generated boxes are masked too, as VS Code's progress badge masks a
+    // block `::before` to its icon.
+    let generated = render(
+        "<div id=badge></div>",
+        "body{margin:0} #badge{display:flex} #badge::before{content:'';display:block;width:13px;height:13px;background-color:white;mask:linear-gradient(black, transparent) no-repeat}",
+    );
+    let items = &generated.root().items;
+    let start = items
+        .iter()
+        .position(|item| matches!(item, DisplayItem::PushMask(_)))
+        .expect("a mask group for the generated box");
+    let end = items
+        .iter()
+        .position(|item| *item == DisplayItem::PopMask)
+        .unwrap();
+    assert!(items[start + 1..end].iter().any(
+        |item| matches!(item, DisplayItem::Fill { color, .. } if *color == Color::rgb(255, 255, 255))
+    ));
     // No mask, no group.
     let plain = render(
         "<div id=box></div>",
