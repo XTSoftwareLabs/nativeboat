@@ -381,6 +381,8 @@ fn backgrounds() {
             ("background-repeat", "no-repeat"),
             ("background-position", "center"),
             ("background-size", "cover"),
+            ("background-origin", "padding-box"),
+            ("background-clip", "border-box"),
         ])
     );
     assert_eq!(
@@ -391,6 +393,8 @@ fn backgrounds() {
             ("background-repeat", "repeat"),
             ("background-position", "0% 0%"),
             ("background-size", "auto"),
+            ("background-origin", "padding-box"),
+            ("background-clip", "border-box"),
         ])
     );
     // A position alone (Element Plus inputs) leaves the color transparent.
@@ -411,7 +415,28 @@ fn backgrounds() {
             ("background-repeat", "repeat-y"),
             ("background-position", "right 4px top"),
             ("background-size", "10px 20px"),
+            ("background-origin", "padding-box"),
+            ("background-clip", "padding-box"),
         ])
+    );
+    assert_eq!(
+        expanded("background", "red border-box content-box").unwrap()[5..],
+        pairs(&[
+            ("background-origin", "border-box"),
+            ("background-clip", "content-box"),
+        ])
+    );
+    assert_eq!(
+        expanded("background", "text linear-gradient(red, blue)").unwrap()[5..],
+        pairs(&[
+            ("background-origin", "padding-box"),
+            ("background-clip", "text"),
+        ])
+    );
+    assert_eq!(expanded("background", "text border-box"), None);
+    assert_eq!(
+        expanded("background", "red padding-box padding-box border-box"),
+        None
     );
     assert_eq!(expanded("background", "url(a.png) / 10px"), None);
     assert_eq!(expanded("background", "0 0 / 1px 2px 3px"), None);

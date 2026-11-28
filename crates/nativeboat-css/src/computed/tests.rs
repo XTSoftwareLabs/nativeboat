@@ -73,6 +73,8 @@ const SAMPLES: &[(&str, &str)] = &[
     ("background-image", "url(a.png)"),
     ("background-repeat", "repeat-x"),
     ("background-size", "50% auto"),
+    ("background-clip", "content-box"),
+    ("background-origin", "border-box"),
     ("background-position", "right 10px bottom"),
     ("mask-image", "url(mask.svg)"),
     ("mask-repeat", "no-repeat"),

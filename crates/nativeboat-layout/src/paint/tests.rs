@@ -806,6 +806,35 @@ fn root_background_wins_over_body() {
 }
 
 #[test]
+fn backgrounds_fill_the_box_they_are_clipped_to() {
+    let page = render(
+        "<div id=p></div><div id=c></div><div id=t>text</div>",
+        "div { height: 10px; border: 2px solid blue; padding: 3px }
+         #p { background: red padding-box }
+         #c { background-color: green; background-clip: content-box }
+         #t { background: red; -webkit-background-clip: text; color: transparent }",
+    );
+    let items = &page.root().items;
+    let boxes = |id: &str| page.layout.boxes[&page.id(id)];
+    assert!(items.contains(&DisplayItem::Fill {
+        rect: boxes("p").padding_box(),
+        color: RED,
+        radii: [Corner::SQUARE; 4]
+    }));
+    assert!(items.contains(&DisplayItem::Fill {
+        rect: boxes("c").content_box(),
+        color: GREEN,
+        radii: [Corner::SQUARE; 4]
+    }));
+    // Backgrounds clipped to text are not painted as boxes.
+    let t = page.rect("t");
+    assert!(!items.iter().any(|item| matches!(
+        item,
+        DisplayItem::Fill { rect, color, .. } if *rect == t && *color == RED
+    )));
+}
+
+#[test]
 fn backgrounds_borders_and_images() {
     let page = render(
         "<div id=r></div><div id=k></div><div id=g></div><div id=q></div><div id=u></div>\

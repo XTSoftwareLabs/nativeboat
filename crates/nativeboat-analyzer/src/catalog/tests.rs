@@ -118,6 +118,8 @@ fn canvas_and_editing_commands_are_judged_by_what_is_used() {
 
 #[test]
 fn shadows_and_scroll_anchoring_are_judged_by_value() {
+    assert_eq!(support(css_property("background-clip", "text")), Partial);
+    assert!(css_property("background-clip", "padding-box").is_none());
     assert!(css_property("text-shadow", "none").is_none());
     assert_eq!(support(css_property("text-shadow", "0 1px red")), Partial);
     assert!(css_property("overflow-anchor", "none").is_none());

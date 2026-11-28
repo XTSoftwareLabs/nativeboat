@@ -990,6 +990,12 @@ pub fn css_property(name: &str, value: &str) -> Option<Feature> {
                 "none takes form controls' native look away and auto keeps it; other values keep the native look",
             )
         }
+        "background-clip" if value.contains("text") => (
+            "background-clip-text",
+            "CSS background-clip: text",
+            Partial,
+            "backgrounds clipped to text are not painted; the text keeps its own color",
+        ),
         name if name.starts_with("scroll-margin") || name.starts_with("scroll-padding") => {
             ("scroll-spacing", "CSS scroll spacing", Supported, "")
         }

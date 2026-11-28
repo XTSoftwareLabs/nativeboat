@@ -16,8 +16,9 @@ use crate::styles::Styles;
 use crate::text::font_of;
 use crate::tree::{BoxGeometry, InlineBoxRect, LayoutResult, TextRun, button_caption};
 use nativeboat_css::types::{
-    BackfaceVisibility, BackgroundImage, BorderStyle, ClipPath, ColorStop, Display, Isolation,
-    LengthPercentageAuto, Overflow, PointerEvents, PositionKind, Px, Radius, Resize, Visibility,
+    BackfaceVisibility, BackgroundBox, BackgroundImage, BorderStyle, ClipPath, ColorStop, Display,
+    Isolation, LengthPercentageAuto, Overflow, PointerEvents, PositionKind, Px, Radius, Resize,
+    Visibility,
 };
 use nativeboat_css::types::{FillRule, Filter, LineCap, LineJoin};
 use nativeboat_css::{Color, ComputedStyle, PseudoElement};
@@ -1832,22 +1833,43 @@ impl Painter<'_> {
                 clip_radii: radii,
             });
         }
-        if (layer.generated || self.canvas != Some(*node))
+        // The box the background fills, with its corners, and the one its
+        // image is placed in. Backgrounds clipped to text are not painted.
+        let inner = |kind: BackgroundBox| match kind {
+            BackgroundBox::PaddingBox => (
+                frame.local(geometry.padding_box()),
+                inset_radii(radii, geometry.border),
+            ),
+            BackgroundBox::ContentBox => (
+                frame.local(geometry.content_box()),
+                inset_radii(
+                    radii,
+                    core::array::from_fn(|side| geometry.border[side] + geometry.padding[side]),
+                ),
+            ),
+            BackgroundBox::BorderBox | BackgroundBox::Text => (rect, radii),
+        };
+        let (clip, clip_radii) = inner(style.background_clip);
+        let painted = style.background_clip != BackgroundBox::Text;
+        if painted
+            && (layer.generated || self.canvas != Some(*node))
             && !style.background_color.is_transparent()
         {
             items.push(DisplayItem::Fill {
-                rect,
+                rect: clip,
                 color: style.background_color,
-                radii,
+                radii: clip_radii,
             });
         }
-        let area = frame.local(geometry.padding_box());
-        self.background_image(
-            &style.background_image,
-            &ImageLayer::background(style),
-            (rect, area, radii),
-            items,
-        );
+        if painted {
+            let (area, _) = inner(style.background_origin);
+            self.background_image(
+                &style.background_image,
+                &ImageLayer::background(style),
+                (clip, area, clip_radii),
+                items,
+            );
+        }
         let padding = frame.local(geometry.padding_box());
         let inner = inset_radii(radii, geometry.border);
         for shadow in style
