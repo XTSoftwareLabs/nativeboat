@@ -191,6 +191,38 @@ pub(super) fn balanced(items: &[DisplayItem]) -> bool {
     clips == 0 && transforms == 0
 }
 
+/// The matching pop of the clip pushed at `start`, when the items between
+/// close every group they open, so that skipping them changes nothing that
+/// follows.
+pub(super) fn clip_end(items: &[DisplayItem], start: usize) -> Option<usize> {
+    // Clips, transforms, opacity, filters and masks.
+    let mut depths = [0usize; 5];
+    for (index, item) in items.iter().enumerate().skip(start) {
+        let (slot, push) = match item {
+            DisplayItem::PushClip { .. } | DisplayItem::PushClipPath { .. } => (0, true),
+            DisplayItem::PopClip => (0, false),
+            DisplayItem::PushTransform(_) => (1, true),
+            DisplayItem::PopTransform => (1, false),
+            DisplayItem::PushOpacity(_) => (2, true),
+            DisplayItem::PopOpacity => (2, false),
+            DisplayItem::PushFilter(_) => (3, true),
+            DisplayItem::PopFilter => (3, false),
+            DisplayItem::PushMask(_) => (4, true),
+            DisplayItem::PopMask => (4, false),
+            _ => continue,
+        };
+        if push {
+            depths[slot] += 1;
+            continue;
+        }
+        depths[slot] = depths[slot].checked_sub(1)?;
+        if slot == 0 && depths[0] == 0 {
+            return depths.iter().all(|depth| *depth == 0).then_some(index);
+        }
+    }
+    None
+}
+
 /// The matching opacity/filter pop, or the end of an unclosed group.
 pub(super) fn group_end(items: &[DisplayItem], start: usize) -> usize {
     // 0: filters, 1: opacity, 2: masks.

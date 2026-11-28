@@ -293,3 +293,27 @@ fn opacity_groups_ignore_filter_pops_and_keep_conservative_extents() {
         assert_eq!(opacity_extent(&[item], IDENTITY), Extent::Unknown);
     }
 }
+
+#[test]
+fn clip_groups_end_at_their_pop_when_balanced() {
+    let clip = || DisplayItem::PushClip {
+        rect: Rect::new(0.0, 0.0, 1.0, 1.0),
+        radii: [Corner::SQUARE; 4],
+    };
+    let items = [
+        clip(),
+        DisplayItem::PushOpacity(0.5),
+        clip(),
+        fill(0.0, 0.0, 1.0, 1.0),
+        DisplayItem::PopClip,
+        DisplayItem::PopOpacity,
+        DisplayItem::PopClip,
+        fill(0.0, 0.0, 1.0, 1.0),
+    ];
+    assert_eq!(clip_end(&items, 0), Some(6));
+    assert_eq!(clip_end(&items, 2), Some(4));
+    // A group the clip leaves open, or no pop at all, is not skipped.
+    let open = [clip(), DisplayItem::PushOpacity(0.5), DisplayItem::PopClip];
+    assert_eq!(clip_end(&open, 0), None);
+    assert_eq!(clip_end(&[clip(), fill(0.0, 0.0, 1.0, 1.0)], 0), None);
+}

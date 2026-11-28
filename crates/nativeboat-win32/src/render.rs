@@ -1544,14 +1544,21 @@ impl Painter {
         // enclosing transform are preserved by the saved graphics state.
         unsafe {
             GdipSaveGraphics(self.graphics, &mut state);
-            let box_path = self.path(self.rect(clip.0), clip.1);
             let mode = if inset {
                 CombineModeIntersect
             } else {
                 CombineModeExclude
             };
-            GdipSetClipPath(self.graphics, box_path, mode);
-            GdipDeletePath(box_path);
+            let area = self.rect(clip.0);
+            // A square box clips as a rectangle, which GDI+ draws through
+            // far faster than a path.
+            if clip.1.iter().all(|corner| corner.is_square()) {
+                GdipSetClipRect(self.graphics, area.X, area.Y, area.Width, area.Height, mode);
+            } else {
+                let box_path = self.path(area, clip.1);
+                GdipSetClipPath(self.graphics, box_path, mode);
+                GdipDeletePath(box_path);
+            }
             if blur > 0.0 {
                 self.blurred_shadow(shape, radii, color, blur, inset, clip.0);
             } else {
@@ -1651,7 +1658,14 @@ impl Painter {
         };
         // SAFETY: image remains live through the draw; the destination graphics
         // applies the enclosing clipping and transforms to the cached bitmap.
+        // The caller's saved graphics state restores the interpolation.
         unsafe {
+            // Drawn at its size on whole pixels, the bitmap's pixels land on
+            // the target's as they are: resampling them changes nothing but
+            // costs much.
+            if factor == 1.0 && self.current() == IDENTITY {
+                GdipSetInterpolationMode(self.graphics, InterpolationModeNearestNeighbor);
+            }
             GdipDrawImageRectRect(
                 self.graphics,
                 image.handle,
@@ -1815,9 +1829,22 @@ impl Painter {
         // SAFETY: the graphics and DC are live; the path is deleted.
         unsafe {
             GdipSaveGraphics(self.graphics, &mut state);
-            let path = self.path(area, radii);
-            GdipSetClipPath(self.graphics, path, CombineModeIntersect);
-            GdipDeletePath(path);
+            // A rectangle clips as one, which GDI+ intersects far faster
+            // than a path: a page clips each of hundreds of elements.
+            if radii.iter().all(|corner| corner.is_square()) {
+                GdipSetClipRect(
+                    self.graphics,
+                    area.X,
+                    area.Y,
+                    area.Width,
+                    area.Height,
+                    CombineModeIntersect,
+                );
+            } else {
+                let path = self.path(area, radii);
+                GdipSetClipPath(self.graphics, path, CombineModeIntersect);
+                GdipDeletePath(path);
+            }
             SaveDC(self.dc);
             IntersectClipRect(
                 self.dc,
@@ -1986,6 +2013,13 @@ impl Painter {
                 if crate::trace::painting() {
                     record_item(14, started);
                 }
+            } else if let DisplayItem::PushClip { rect, .. } = &items[index]
+                && self.clipped_out(*rect)
+                && let Some(end) = bounds::clip_end(items, index)
+            {
+                // Nothing inside a clip that misses the pixels being painted
+                // shows: a caret's blink need not clip each element.
+                index = end;
             } else if !self.outside_area(&items[index]) {
                 if crate::trace::painting() {
                     let started = crate::window::microseconds();
@@ -2038,6 +2072,38 @@ impl Painter {
             || edges[0] - 1.0 > area.right as f32
             || edges[3] + 1.0 < area.top as f32
             || edges[1] - 1.0 > area.bottom as f32
+    }
+
+    /// Whether a clip, untransformed, leaves no pixel of the area being
+    /// painted, or of the target when the whole target is, to draw on.
+    fn clipped_out(&self, rect: Rect) -> bool {
+        if self.current() != IDENTITY {
+            return false;
+        }
+        let bounds = match self.area {
+            Some(area) => area,
+            // A printer has no pixels whose size bounds drawing.
+            None if !self.target.bmBits.is_null() => RECT {
+                left: 0,
+                top: 0,
+                right: self.target.bmWidth,
+                bottom: self.target.bmHeight.abs(),
+            },
+            None => return false,
+        };
+        let area = self.rect(rect);
+        let edges = [area.X, area.Y, area.X + area.Width, area.Y + area.Height];
+        if !edges.iter().all(|edge| edge.is_finite()) {
+            return false;
+        }
+        // A pixel of slack on each side, as rounding at fractional scales
+        // may reach it.
+        area.Width <= 0.0
+            || area.Height <= 0.0
+            || edges[2] + 1.0 < bounds.left as f32
+            || edges[0] - 1.0 > bounds.right as f32
+            || edges[3] + 1.0 < bounds.top as f32
+            || edges[1] - 1.0 > bounds.bottom as f32
     }
 
     /// The device pixels drawing can change: the clip within the target.
