@@ -1303,7 +1303,7 @@ impl Builder<'_> {
         };
         Some(Segment {
             symbol,
-            ..self.segment(&text, text_style, item, item, (false, false), after_space)
+            ..self.segment(&text, text_style, item, item, Lines::NONE, after_space)
         })
     }
 
