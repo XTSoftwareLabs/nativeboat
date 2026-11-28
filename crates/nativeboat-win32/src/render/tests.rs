@@ -77,6 +77,48 @@ fn areas_limit_painting() {
     assert_eq!(canvas.pixel(2, 2), (255, 0, 0));
 }
 
+#[test]
+fn clips_beside_the_area_skip_their_content_and_keep_later_state() {
+    let clip = |x: f32| DisplayItem::PushClip {
+        rect: Rect::new(x, 0.0, 4.0, 20.0),
+        radii: NONE,
+    };
+    let items = [
+        // Beside the area: skipped whole, with its nested groups.
+        clip(14.0),
+        DisplayItem::PushOpacity(0.5),
+        clip(14.0),
+        fill(Rect::new(0.0, 0.0, 20.0, 20.0), BLUE),
+        DisplayItem::PopClip,
+        DisplayItem::PopOpacity,
+        DisplayItem::PopClip,
+        // Over the area: painted, and its pop still lifts it.
+        clip(4.0),
+        fill(Rect::new(0.0, 0.0, 20.0, 20.0), RED),
+        DisplayItem::PopClip,
+        fill(Rect::new(8.0, 8.0, 2.0, 2.0), BLUE),
+    ];
+    let area = RECT {
+        left: 5,
+        top: 5,
+        right: 10,
+        bottom: 10,
+    };
+    let canvas = Canvas::new(20, 20);
+    paint_area(canvas.dc, &items, 1.0, (0.0, 0.0), Some(area), false);
+    assert_eq!(canvas.pixel(6, 6), (255, 0, 0));
+    assert_eq!(canvas.pixel(9, 9), (0, 0, 255));
+    assert_eq!(canvas.pixel(15, 6), WHITE);
+    // Painting everything, clips past the target's edge are skipped too.
+    let whole = Canvas::new(20, 20);
+    let mut beyond = items.to_vec();
+    beyond[0] = clip(40.0);
+    paint(whole.dc, &beyond, 1.0, (0.0, 0.0));
+    assert_eq!(whole.pixel(6, 6), (255, 0, 0));
+    assert_eq!(whole.pixel(15, 6), WHITE);
+    assert_eq!(whole.pixel(9, 9), (0, 0, 255));
+}
+
 /// A 2x2 24-bit BMP: blue and white on top, red and green below.
 pub(crate) fn bitmap_file() -> Vec<u8> {
     let rows: [[u8; 8]; 2] = [
