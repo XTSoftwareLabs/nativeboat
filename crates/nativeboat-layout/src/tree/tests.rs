@@ -1126,6 +1126,7 @@ fn generated_content_needs_items() {
         bidi: (0, false),
         images: HashMap::new(),
         counters: core::cell::OnceCell::new(),
+        decorations: core::cell::RefCell::new(vec![Rc::from([])]),
     };
     let input = dom.get_element_by_id(Dom::DOCUMENT, "i").unwrap();
     let mut after_space = true;
@@ -1134,7 +1135,7 @@ fn generated_content_needs_items() {
             .generated(
                 input,
                 &PseudoElement::Placeholder,
-                (false, false),
+                Lines::NONE,
                 &mut after_space
             )
             .is_none()
